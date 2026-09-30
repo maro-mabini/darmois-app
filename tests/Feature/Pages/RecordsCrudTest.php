@@ -143,7 +143,8 @@ test('adds a file to a record', function () {
         ->call('startCreateFile')
         ->set('file_name', 'Deed of transfer.pdf')
         ->set('file_description', 'Signed transfer deed')
-        ->set('date_of_file', '1893-04-12')
+        ->set('date_of_file_month', '4')
+        ->set('date_of_file_year', '1893')
         ->call('saveFile')
         ->assertHasNoErrors()
         ->assertNoRedirect()
@@ -156,7 +157,7 @@ test('adds a file to a record', function () {
     expect($file)
         ->file_name->toBe('Deed of transfer.pdf')
         ->file_description->toBe('Signed transfer deed')
-        ->and($file->date_of_file?->format('Y-m-d'))->toBe('1893-04-12');
+        ->and($file->date_of_file?->format('Y-m-d'))->toBe('1893-04-01');
 });
 
 test('stores a blank file description and date as null', function () {
@@ -166,7 +167,8 @@ test('stores a blank file description and date as null', function () {
         ->call('startCreateFile')
         ->set('file_name', 'Untitled scan')
         ->set('file_description', '')
-        ->set('date_of_file', '')
+        ->set('date_of_file_month', '')
+        ->set('date_of_file_year', '')
         ->call('saveFile')
         ->assertHasNoErrors();
 
@@ -204,13 +206,152 @@ test('edits a file', function () {
         ->call('startEditFile', $file->id)
         ->assertSet('file_name', 'Old.pdf')
         ->set('file_name', 'New.pdf')
-        ->set('date_of_file', '1893-04-12')
+        ->set('date_of_file_month', '4')
+        ->set('date_of_file_year', '1893')
         ->call('saveFile')
         ->assertHasNoErrors();
 
     expect($file->fresh())
         ->file_name->toBe('New.pdf')
-        ->and($file->fresh()->date_of_file?->format('Y-m-d'))->toBe('1893-04-12');
+        ->and($file->fresh()->date_of_file?->format('Y-m-d'))->toBe('1893-04-01');
+});
+
+test('leaving the month alone keeps the day the file already had', function () {
+    $record = RecordsOwner::factory()->create();
+    $file = File::factory()->for($record)->create([
+        'file_name' => 'Deed.pdf',
+        'date_of_file' => '1893-04-12',
+    ]);
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->call('startEditFile', $file->id)
+        ->assertSet('date_of_file_month', '4')
+        ->assertSet('date_of_file_year', '1893')
+        ->set('file_name', 'Amended deed.pdf')
+        ->call('saveFile')
+        ->assertHasNoErrors();
+
+    expect($file->fresh()->date_of_file?->format('Y-m-d'))->toBe('1893-04-12');
+});
+
+test('choosing a different month moves the file to the first of that month', function () {
+    $record = RecordsOwner::factory()->create();
+    $file = File::factory()->for($record)->create([
+        'file_name' => 'Deed.pdf',
+        'date_of_file' => '1893-04-12',
+    ]);
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->call('startEditFile', $file->id)
+        ->set('date_of_file_month', '5')
+        ->call('saveFile')
+        ->assertHasNoErrors();
+
+    expect($file->fresh()->date_of_file?->format('Y-m-d'))->toBe('1893-05-01');
+});
+
+test('a month with no year is not a date', function () {
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->call('startCreateFile')
+        ->set('file_name', 'Half a date.pdf')
+        ->set('date_of_file_month', '4')
+        ->set('date_of_file_year', '')
+        ->call('saveFile')
+        ->assertHasErrors('date_of_file_year');
+
+    expect($record->files()->count())->toBe(0);
+});
+
+test('a year with no month is not a date', function () {
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->call('startCreateFile')
+        ->set('file_name', 'Half a date.pdf')
+        ->set('date_of_file_month', '')
+        ->set('date_of_file_year', '1893')
+        ->call('saveFile')
+        ->assertHasErrors('date_of_file_month');
+
+    expect($record->files()->count())->toBe(0);
+});
+
+test('rejects a month that is not one of the twelve', function () {
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->call('startCreateFile')
+        ->set('file_name', 'Impossible.pdf')
+        ->set('date_of_file_month', '13')
+        ->set('date_of_file_year', '1893')
+        ->call('saveFile')
+        ->assertHasErrors('date_of_file_month');
+});
+
+test('rejects a year from before the dropdowns start', function () {
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->call('startCreateFile')
+        ->set('file_name', 'Antique.pdf')
+        ->set('date_of_file_month', '1')
+        ->set('date_of_file_year', '1800')
+        ->call('saveFile')
+        ->assertHasErrors('date_of_file_year');
+});
+
+test('rejects a year from beyond the dropdowns', function () {
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->call('startCreateFile')
+        ->set('file_name', 'Far future.pdf')
+        ->set('date_of_file_month', '1')
+        ->set('date_of_file_year', (string) ((int) now()->year + 50))
+        ->call('saveFile')
+        ->assertHasErrors('date_of_file_year');
+});
+
+test('the file form offers all twelve months', function () {
+    $record = RecordsOwner::factory()->create();
+
+    $months = Livewire::test('admin::records.show', ['record' => $record])
+        ->instance()
+        ->monthOptions();
+
+    expect($months)->toHaveCount(12)
+        ->and(array_keys($months))->toBe(range(1, 12))
+        ->and($months[1])->toBe('January')
+        ->and($months[12])->toBe('December');
+});
+
+test('the year dropdowns reach into the past and a little into the future', function () {
+    $record = RecordsOwner::factory()->create();
+
+    $years = Livewire::test('admin::records.show', ['record' => $record])
+        ->instance()
+        ->yearOptions();
+
+    $current = (int) now()->year;
+
+    expect($years)->toHaveKey($current)
+        ->and($years)->toHaveKey(1850)
+        ->and($years)->toHaveKey($current + 5)
+        ->and($years)->not->toHaveKey(1849)
+        ->and($years)->not->toHaveKey($current + 6)
+        // Newest first, so the common case is the first thing reachable.
+        ->and((int) array_key_first($years))->toBe($current + 5);
+});
+
+test('the file date is shown to the month rather than to a day it never had', function () {
+    $record = RecordsOwner::factory()->create();
+    File::factory()->for($record)->create(['date_of_file' => '1893-04-12']);
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->assertSee('April 1893')
+        ->assertDontSee('Apr 12, 1893');
 });
 
 test('cannot edit a file through the wrong record', function () {

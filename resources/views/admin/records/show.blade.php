@@ -4,6 +4,7 @@ use App\Models\File;
 use App\Models\OwnerType;
 use App\Models\RecordType;
 use App\Models\RecordsOwner;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -11,6 +12,16 @@ use Livewire\Attributes\Computed;
 use Livewire\Component;
 
 new class extends Component {
+    /**
+     * The oldest year offered by the date dropdowns.
+     */
+    private const EARLIEST_YEAR = 1850;
+
+    /**
+     * How many years past the current one the dropdowns reach.
+     */
+    private const FUTURE_YEARS = 5;
+
     public RecordsOwner $record;
 
     /**
@@ -33,7 +44,21 @@ new class extends Component {
 
     public string $file_description = '';
 
-    public string $date_of_file = '';
+    /**
+     * The month the file was created in, 1-12, or an empty string for unset.
+     */
+    public string $date_of_file_month = '';
+
+    /**
+     * The year the file was created in, or an empty string for unset.
+     */
+    public string $date_of_file_year = '';
+
+    /**
+     * The date the file being edited already had, kept so re-saving an untouched
+     * month does not quietly move the file to the first of the month.
+     */
+    public string $date_of_file_original = '';
 
     /**
      * Load the record.
@@ -83,6 +108,55 @@ new class extends Component {
     }
 
     /**
+     * The twelve months, keyed by number so the value stays a plain integer.
+     *
+     * Names come from the intl-free month list rather than a formatted date so
+     * they do not shift with the app's locale or the server's clock.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function monthOptions(): array
+    {
+        return [
+            1 => 'January',
+            2 => 'February',
+            3 => 'March',
+            4 => 'April',
+            5 => 'May',
+            6 => 'June',
+            7 => 'July',
+            8 => 'August',
+            9 => 'September',
+            10 => 'October',
+            11 => 'November',
+            12 => 'December',
+        ];
+    }
+
+    /**
+     * The years on offer, newest first.
+     *
+     * The range is deliberately wide at the bottom: these are archival records
+     * and the oldest file in the sample data is from the 1890s, so a range
+     * anchored on the current year would make historic files unselectable.
+     * The top reaches past the current year to allow a date that is known but
+     * not yet reached.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function yearOptions(): array
+    {
+        $current = (int) now()->year;
+
+        return collect(range(self::EARLIEST_YEAR, $current + self::FUTURE_YEARS))
+            ->reverse()
+            ->mapWithKeys(fn (int $year): array => [$year => (string) $year])
+            ->all();
+    }
+
+    /**
      * Load the record into the form.
      */
     public function startEditRecord(): void
@@ -128,7 +202,9 @@ new class extends Component {
         $this->editingFile = null;
         $this->file_name = '';
         $this->file_description = '';
-        $this->date_of_file = '';
+        $this->date_of_file_month = '';
+        $this->date_of_file_year = '';
+        $this->date_of_file_original = '';
         $this->resetValidation();
     }
 
@@ -145,7 +221,12 @@ new class extends Component {
         $this->editingFile = $model->id;
         $this->file_name = $model->file_name;
         $this->file_description = (string) $model->file_description;
-        $this->date_of_file = $model->date_of_file?->format('Y-m-d') ?? '';
+        // format('n') and 'Y' rather than a split, so no timezone or padding
+        // assumption creeps in. The original is kept so an unchanged month
+        // survives the round trip intact.
+        $this->date_of_file_month = $model->date_of_file?->format('n') ?? '';
+        $this->date_of_file_year = $model->date_of_file?->format('Y') ?? '';
+        $this->date_of_file_original = $model->date_of_file?->format('Y-m-d') ?? '';
         $this->resetValidation();
     }
 
@@ -167,7 +248,7 @@ new class extends Component {
         $attributes = [
             'file_name' => $validated['file_name'],
             'file_description' => $validated['file_description'] !== '' ? $validated['file_description'] : null,
-            'date_of_file' => $validated['date_of_file'] !== '' ? $validated['date_of_file'] : null,
+            'date_of_file' => $this->composeFileDate(),
         ];
 
         $editing = $this->editingFile !== null;
@@ -181,11 +262,42 @@ new class extends Component {
         $this->editingFile = null;
         $this->file_name = '';
         $this->file_description = '';
-        $this->date_of_file = '';
+        $this->date_of_file_month = '';
+        $this->date_of_file_year = '';
+        $this->date_of_file_original = '';
         $this->resetValidation();
 
         $this->dispatch('modal-saved', 'file-form');
         $this->dispatch('toast', message: $editing ? 'File updated.' : 'File added.');
+    }
+
+    /**
+     * Join the two dropdowns into a date, or null when neither is set.
+     *
+     * The dropdowns only carry a month and a year, so the day is implied. Where
+     * the file already had a date in that same month, the original day is kept
+     * rather than replaced with 01: editing a file's name should not silently
+     * move it to a different day of the month.
+     */
+    private function composeFileDate(): ?string
+    {
+        if ($this->date_of_file_month === '' || $this->date_of_file_year === '') {
+            return null;
+        }
+
+        $month = sprintf('%02d', (int) $this->date_of_file_month);
+        $year = (int) $this->date_of_file_year;
+
+        // Only carry the original day over when it belongs to the chosen month.
+        if ($this->date_of_file_original !== '') {
+            $original = Carbon::parse($this->date_of_file_original);
+
+            if ($original->format('Y') === (string) $year && $original->format('n') === (string) (int) $this->date_of_file_month) {
+                return $original->format('Y-m-d');
+            }
+        }
+
+        return sprintf('%04d-%02d-01', $year, (int) $this->date_of_file_month);
     }
 
     /**
@@ -233,10 +345,21 @@ new class extends Component {
      */
     protected function fileRules(): array
     {
+        $current = (int) now()->year;
+
         return [
             'file_name' => ['required', 'string', 'max:255'],
             'file_description' => ['nullable', 'string', 'max:1000'],
-            'date_of_file' => ['nullable', 'date'],
+            // Each half is optional, but neither may be filled in alone: a month
+            // with no year is not a date, and a bare year is not one either.
+            'date_of_file_month' => ['nullable', 'integer', 'between:1,12', 'required_with:date_of_file_year'],
+            'date_of_file_year' => [
+                'nullable',
+                'integer',
+                "min:".self::EARLIEST_YEAR,
+                'max:'.($current + self::FUTURE_YEARS),
+                'required_with:date_of_file_month',
+            ],
         ];
     }
 };
@@ -315,7 +438,7 @@ new class extends Component {
                             {{ $file->file_description ?: '—' }}
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
-                            {{ $file->date_of_file?->toFormattedDateString() ?? '—' }}
+                            {{ $file->date_of_file?->format('F Y') ?? '—' }}
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
                             <button
@@ -407,9 +530,12 @@ new class extends Component {
                 <x-form.textarea name="file_description" rows="3" />
             </x-form.field>
 
-            <x-form.field label="Date of file" name="date_of_file">
-                <x-form.input name="date_of_file" type="date" />
-            </x-form.field>
+            <x-form.month-year
+                name="date_of_file"
+                label="Date of file"
+                :months="$this->monthOptions"
+                :years="$this->yearOptions"
+            />
         </form>
 
         <x-slot:footer>

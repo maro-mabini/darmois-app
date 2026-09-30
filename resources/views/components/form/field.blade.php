@@ -3,6 +3,7 @@
     'name',
     'required' => false,
     'hint' => null,
+    'errorKeys' => [],
 ])
 
 <div>
@@ -22,7 +23,14 @@
         {{ $slot }}
     </div>
 
-    @error($name)
-        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
-    @enderror
+    {{--
+        A field made of more than one control (a month and a year, say) owns no
+        single input, so the extra keys are listed here to have their messages
+        collected under the one label.
+    --}}
+    @foreach (array_merge([$name], $errorKeys) as $errorKey)
+        @error($errorKey)
+            <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+        @enderror
+    @endforeach
 </div>
