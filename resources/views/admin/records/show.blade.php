@@ -13,12 +13,12 @@ use Livewire\Component;
 
 new class extends Component {
     /**
-     * The oldest year offered by the date dropdowns.
+     * The oldest year offered by the date picker.
      */
     private const EARLIEST_YEAR = 1850;
 
     /**
-     * How many years past the current one the dropdowns reach.
+     * How many years past the current one the picker reaches.
      */
     private const FUTURE_YEARS = 5;
 
@@ -135,25 +135,23 @@ new class extends Component {
     }
 
     /**
-     * The years on offer, newest first.
+     * The oldest and newest year the file date picker will offer.
      *
      * The range is deliberately wide at the bottom: these are archival records
      * and the oldest file in the sample data is from the 1890s, so a range
-     * anchored on the current year would make historic files unselectable.
-     * The top reaches past the current year to allow a date that is known but
-     * not yet reached.
+     * anchored on the current year would make historic files unreachable. The
+     * top reaches past the current year to allow a date that is known but not
+     * yet reached.
      *
-     * @return array<int, string>
+     * These are the same bounds the validation rules enforce, so the picker can
+     * never offer a year the server would then refuse.
+     *
+     * @return array{int, int}
      */
     #[Computed]
-    public function yearOptions(): array
+    public function fileYearRange(): array
     {
-        $current = (int) now()->year;
-
-        return collect(range(self::EARLIEST_YEAR, $current + self::FUTURE_YEARS))
-            ->reverse()
-            ->mapWithKeys(fn (int $year): array => [$year => (string) $year])
-            ->all();
+        return [self::EARLIEST_YEAR, (int) now()->year + self::FUTURE_YEARS];
     }
 
     /**
@@ -530,11 +528,12 @@ new class extends Component {
                 <x-form.textarea name="file_description" rows="3" />
             </x-form.field>
 
-            <x-form.month-year
+            <x-form.date-picker
                 name="date_of_file"
                 label="Date of file"
                 :months="$this->monthOptions"
-                :years="$this->yearOptions"
+                :min-year="$this->fileYearRange[0]"
+                :max-year="$this->fileYearRange[1]"
             />
         </form>
 

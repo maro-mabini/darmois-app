@@ -302,7 +302,7 @@ test('rejects a year from before the dropdowns start', function () {
         ->assertHasErrors('date_of_file_year');
 });
 
-test('rejects a year from beyond the dropdowns', function () {
+test('rejects a year from beyond the picker', function () {
     $record = RecordsOwner::factory()->create();
 
     Livewire::test('admin::records.show', ['record' => $record])
@@ -327,22 +327,25 @@ test('the file form offers all twelve months', function () {
         ->and($months[12])->toBe('December');
 });
 
-test('the year dropdowns reach into the past and a little into the future', function () {
+test('the picker reaches into the past and a little into the future', function () {
     $record = RecordsOwner::factory()->create();
 
-    $years = Livewire::test('admin::records.show', ['record' => $record])
+    $range = Livewire::test('admin::records.show', ['record' => $record])
         ->instance()
-        ->yearOptions();
+        ->fileYearRange();
 
     $current = (int) now()->year;
 
-    expect($years)->toHaveKey($current)
-        ->and($years)->toHaveKey(1850)
-        ->and($years)->toHaveKey($current + 5)
-        ->and($years)->not->toHaveKey(1849)
-        ->and($years)->not->toHaveKey($current + 6)
-        // Newest first, so the common case is the first thing reachable.
-        ->and((int) array_key_first($years))->toBe($current + 5);
+    expect($range)->toBe([1850, $current + 5]);
+});
+
+test('the picker is bound to the same two properties the file form validates', function () {
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->assertSee('date_of_file_month')
+        ->assertSee('date_of_file_year')
+        ->assertSee('Choose a month and year');
 });
 
 test('the file date is shown to the month rather than to a day it never had', function () {
