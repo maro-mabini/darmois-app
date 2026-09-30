@@ -219,5 +219,11 @@
             {{ $slot }}
         </main>
     </div>
+
+    {{--
+        Outside the flex wrapper so a notification is never clipped by the
+        sidebar's overflow, and inside <body> so it outlives a page navigation.
+    --}}
+    <x-toast />
 </body>
 </html>

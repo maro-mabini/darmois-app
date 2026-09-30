@@ -104,8 +104,12 @@ new class extends Component {
 
         if ($this->editing === null) {
             RecordsOwner::create($validated);
+
+            $message = 'Record created.';
         } else {
             RecordsOwner::query()->findOrFail($this->editing)->update($validated);
+
+            $message = 'Record updated.';
         }
 
         $this->editing = null;
@@ -117,6 +121,7 @@ new class extends Component {
         $this->resetPage();
 
         $this->dispatch('modal-saved', 'record-form');
+        $this->dispatch('toast', message: $message);
     }
 
     /**
@@ -124,9 +129,12 @@ new class extends Component {
      */
     public function delete(int $record): void
     {
-        RecordsOwner::query()->findOrFail($record)->delete();
+        $model = RecordsOwner::query()->findOrFail($record);
+
+        $model->delete();
 
         $this->dispatch('modal-saved', 'record-delete');
+        $this->dispatch('toast', message: "Record “{$model->owner_name}” deleted.");
     }
 
     /**

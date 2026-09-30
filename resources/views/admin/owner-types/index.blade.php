@@ -67,7 +67,9 @@ new class extends Component {
             throw $exception;
         }
 
-        $type = $this->editing === null
+        $creating = $this->editing === null;
+
+        $type = $creating
             ? new OwnerType
             : OwnerType::query()->findOrFail($this->editing);
 
@@ -79,6 +81,7 @@ new class extends Component {
         $this->resetValidation();
 
         $this->dispatch('modal-saved', 'owner-type-form');
+        $this->dispatch('toast', message: $creating ? 'Owner type created.' : 'Owner type updated.');
     }
 
     /**
@@ -103,6 +106,7 @@ new class extends Component {
         $type->delete();
 
         $this->dispatch('modal-saved', 'owner-type-delete');
+        $this->dispatch('toast', message: "Owner type “{$type->name}” deleted.");
     }
 
     /**

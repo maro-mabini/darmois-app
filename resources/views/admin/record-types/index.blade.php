@@ -67,7 +67,9 @@ new class extends Component {
             throw $exception;
         }
 
-        $type = $this->editing === null
+        $creating = $this->editing === null;
+
+        $type = $creating
             ? new RecordType
             : RecordType::query()->findOrFail($this->editing);
 
@@ -79,6 +81,7 @@ new class extends Component {
         $this->resetValidation();
 
         $this->dispatch('modal-saved', 'record-type-form');
+        $this->dispatch('toast', message: $creating ? 'Record type created.' : 'Record type updated.');
     }
 
     /**
@@ -106,6 +109,7 @@ new class extends Component {
         $type->delete();
 
         $this->dispatch('modal-saved', 'record-type-delete');
+        $this->dispatch('toast', message: "Record type “{$type->name}” deleted.");
     }
 
     /**

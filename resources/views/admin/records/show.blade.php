@@ -117,6 +117,7 @@ new class extends Component {
         $this->resetValidation();
 
         $this->dispatch('modal-saved', 'record-form');
+        $this->dispatch('toast', message: 'Record updated.');
     }
 
     /**
@@ -169,7 +170,9 @@ new class extends Component {
             'date_of_file' => $validated['date_of_file'] !== '' ? $validated['date_of_file'] : null,
         ];
 
-        if ($this->editingFile !== null) {
+        $editing = $this->editingFile !== null;
+
+        if ($editing) {
             $this->record->files()->findOrFail($this->editingFile)->update($attributes);
         } else {
             $this->record->files()->create($attributes);
@@ -182,6 +185,7 @@ new class extends Component {
         $this->resetValidation();
 
         $this->dispatch('modal-saved', 'file-form');
+        $this->dispatch('toast', message: $editing ? 'File updated.' : 'File added.');
     }
 
     /**
@@ -189,9 +193,12 @@ new class extends Component {
      */
     public function deleteFile(int $file): void
     {
-        $this->record->files()->findOrFail($file)->delete();
+        $model = $this->record->files()->findOrFail($file);
+
+        $model->delete();
 
         $this->dispatch('modal-saved', 'file-delete');
+        $this->dispatch('toast', message: "File “{$model->file_name}” deleted.");
     }
 
     /**
@@ -207,7 +214,16 @@ new class extends Component {
             return;
         }
 
+        $name = $this->record->owner_name;
+
         $this->record->delete();
+
+        // Dispatched before the redirect on purpose. Both are effects on the same
+        // response, and the toast is what survives the navigation: it is written
+        // to sessionStorage as it is handled, and the index page's layout reads
+        // it back on init. Reversing these two lines would navigate first and
+        // discard the notification before it was ever shown.
+        $this->dispatch('toast', message: "Record “{$name}” deleted.");
 
         $this->redirect(route('admin.records.index'), navigate: true);
     }
