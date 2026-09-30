@@ -1,0 +1,72 @@
+<?php
+
+use App\Models\File;
+use App\Models\OwnerType;
+use App\Models\RecordsOwner;
+use App\Models\RecordType;
+use Illuminate\Support\Str;
+
+function recordRow(string $content, string $ownerName): string
+{
+    return Str::between(
+        (string) preg_replace('/\s+/', ' ', $content),
+        '> '.$ownerName.' </td>',
+        '</tr>',
+    );
+}
+
+test('lists the created records with their file count', function () {
+    $withFiles = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+    File::factory()->for($withFiles)->count(3)->create();
+    $withoutFiles = RecordsOwner::factory()->create(['owner_name' => 'Grace Hopper']);
+
+    $response = $this->get(route('admin.records.index'));
+
+    $response->assertOk()->assertSee('Ada Lovelace')->assertSee('Grace Hopper');
+
+    $content = $response->getContent();
+
+    expect(recordRow($content, 'Ada Lovelace'))->toContain('> 3 </td>')
+        ->and(recordRow($content, 'Grace Hopper'))->toContain('> 0 </td>');
+});
+
+test('renders the record type and owner type of each record', function () {
+    RecordsOwner::factory()->create([
+        'owner_name' => 'Alan Turing',
+        'owner_type_id' => OwnerType::factory()->create(['name' => 'ARBO'])->id,
+        'record_type_id' => RecordType::factory()->create(['name' => 'Land Registry'])->id,
+    ]);
+
+    $this->get(route('admin.records.index'))
+        ->assertOk()
+        ->assertSee('Alan Turing')
+        ->assertSee('ARBO')
+        ->assertSee('Land Registry');
+});
+
+test('shows an empty state when no record exists', function () {
+    $this->get(route('admin.records.index'))
+        ->assertOk()
+        ->assertSee('No records yet.')
+        ->assertDontSee('aria-label="Pagination Navigation"', escape: false);
+});
+
+test('paginates the records fifteen to a page', function () {
+    RecordsOwner::factory()
+        ->count(16)
+        ->sequence(...array_map(
+            fn (int $day) => ['owner_name' => sprintf('Owner %02d', $day), 'created_at' => now()->subDays($day)],
+            range(0, 15),
+        ))
+        ->create();
+
+    $this->get(route('admin.records.index'))
+        ->assertOk()
+        ->assertSee('Owner 00')
+        ->assertDontSee('Owner 15')
+        ->assertSee('aria-label="Pagination Navigation"', escape: false);
+
+    $this->get(route('admin.records.index', ['page' => 2]))
+        ->assertOk()
+        ->assertSee('Owner 15');
+});

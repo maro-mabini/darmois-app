@@ -1,0 +1,55 @@
+@import 'tailwindcss';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+/*
+ * Dark mode follows the operating system, and additionally honours a `.dark`
+ * class on <html> so a theme toggle can override the OS preference later without
+ * having to revisit any `dark:` utility in the views.
+ */
+@custom-variant dark {
+    @media (prefers-color-scheme: dark) {
+        &:where(.dark, .dark *) {
+            @slot;
+        }
+    }
+
+    &:where(.dark, .dark *) {
+        @slot;
+    }
+}
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@layer base {
+    /*
+     * Alpine sets this only once the element is initialised, so anything using
+     * x-show/x-cloak stays hidden until Alpine is ready. Without it the sidebar
+     * labels and drawer flash at full width on first paint.
+     */
+    [x-cloak] {
+        display: none !important;
+    }
+
+    /*
+     * Tells the browser which palette to use for the parts it paints itself:
+     * scrollbars, native select popups, date pickers and form control
+     * defaults. Without it those stay light even on a dark page.
+     */
+    :root {
+        color-scheme: light;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        :root:not(.light) {
+            color-scheme: dark;
+        }
+    }
+
+    :root:where(.dark) {
+        color-scheme: dark;
+    }
+}

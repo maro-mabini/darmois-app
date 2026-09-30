@@ -1,0 +1,14 @@
+record_types
+    name
+
+records_owners
+    uuid
+    owner_name
+    owner_type (arb, arbo, none_arb)
+    record_type_id (foreign id -> record_types.id)
+
+files
+    records_owners_id (foreign id -> records_owners.id)
+    file_name
+    file_description
+    date_of_file
