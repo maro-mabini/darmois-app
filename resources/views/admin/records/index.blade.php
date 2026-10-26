@@ -576,14 +576,14 @@ new class extends Component {
                     <th scope="col" class="w-10 py-3 pl-4 pr-1">
                         <span class="sr-only">Show files</span>
                     </th>
-                    <th scope="col" class="px-2.5 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Owner</th>
-                    <th scope="col" class="px-2.5 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Location</th>
-                    <th scope="col" class="px-2.5 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Station</th>
-                    <th scope="col" class="px-2.5 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Owner type</th>
-                    <th scope="col" class="px-2.5 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Record type</th>
-                    <th scope="col" class="px-2.5 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Files</th>
-                    <th scope="col" class="px-2.5 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Added</th>
-                    <th scope="col" class="px-2.5 py-3 text-right font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">
+                    <th scope="col" class="px-3 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Owner</th>
+                    <th scope="col" class="px-3 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Location</th>
+                    <th scope="col" class="px-3 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Station</th>
+                    <th scope="col" class="px-3 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Owner type</th>
+                    <th scope="col" class="px-3 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Record type</th>
+                    <th scope="col" class="px-3 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Files</th>
+                    <th scope="col" class="px-3 py-3 text-left font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">Added</th>
+                    <th scope="col" class="px-3 py-3 text-right font-medium whitespace-nowrap text-gray-500 dark:text-gray-300">
                         <span class="sr-only">Actions</span>
                     </th>
                 </tr>
@@ -625,7 +625,7 @@ new class extends Component {
                                 </svg>
                             </span>
                         </td>
-                        <td class="px-2.5 py-3 font-medium whitespace-nowrap text-gray-900 dark:text-white">
+                        <td class="px-3 py-3 font-medium whitespace-nowrap text-gray-900 dark:text-white">
                             <a
                                 href="{{ route('admin.records.show', $record) }}"
                                 wire:navigate
@@ -634,29 +634,29 @@ new class extends Component {
                                 {{ $record->owner_name }}
                             </a>
                         </td>
-                        <td class="px-2.5 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                        <td class="px-3 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
                             {{ $record->location?->name ?? '—' }}
                         </td>
-                        <td class="px-2.5 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                        <td class="px-3 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
                             {{ $record->station?->name ?? '—' }}
                         </td>
-                        <td class="px-2.5 py-3 whitespace-nowrap">
+                        <td class="px-3 py-3 whitespace-nowrap">
                             <span class="inline-flex rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                                 {{ $record->ownerType->name }}
                             </span>
                         </td>
-                        <td class="px-2.5 py-3 whitespace-nowrap">
+                        <td class="px-3 py-3 whitespace-nowrap">
                             <span class="inline-flex rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                                 {{ $record->recordType->name }}
                             </span>
                         </td>
-                        <td class="px-2.5 py-3 tabular-nums text-gray-600 dark:text-gray-300">
+                        <td class="px-3 py-3 tabular-nums text-gray-600 dark:text-gray-300">
                             {{ $record->files_count }}
                         </td>
-                        <td class="px-2.5 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                        <td class="px-3 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
                             {{ $record->created_at->toFormattedDateString() }}
                         </td>
-                        <td class="px-2.5 py-3 text-right whitespace-nowrap">
+                        <td class="px-3 py-3 text-right whitespace-nowrap">
                             <a
                                 href="{{ route('admin.records.show', $record) }}"
                                 wire:navigate
@@ -665,23 +665,10 @@ new class extends Component {
                                 View
                             </a>
 
-                            {{--
-                                Adding from the row also opens the panel, so the
-                                file the modal just saved is visible underneath
-                                once the dialog closes.
-                            --}}
-                            <button
-                                type="button"
-                                x-on:click="$wire.startCreateFile({{ $record->id }}).then(() => { open = true; $dispatch('modal-open', 'file-form') })"
-                                class="ml-2 font-medium text-brand-600 hover:underline dark:text-brand-300"
-                            >
-                                Add file
-                            </button>
-
                             <button
                                 type="button"
                                 x-on:click="$wire.startEdit({{ $record->id }}).then(() => $dispatch('modal-open', 'record-form'))"
-                                class="ml-2 font-medium text-brand-600 hover:underline dark:text-brand-300"
+                                class="ml-3 font-medium text-brand-600 hover:underline dark:text-brand-300"
                             >
                                 Edit
                             </button>
@@ -690,7 +677,7 @@ new class extends Component {
                                 type="button"
                                 data-label="{{ $record->owner_name }}"
                                 x-on:click="$dispatch('modal-open', { id: 'record-delete', payload: { id: {{ $record->id }}, label: $el.dataset.label } })"
-                                class="ml-2 font-medium text-red-600 hover:underline dark:text-red-400"
+                                class="ml-3 font-medium text-red-600 hover:underline dark:text-red-400"
                             >
                                 Delete
                             </button>
