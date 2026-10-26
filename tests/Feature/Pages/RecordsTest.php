@@ -30,6 +30,31 @@ test('lists the created records with their file count', function () {
         ->and(recordRow($content, 'Grace Hopper'))->toContain('> 0 </td>');
 });
 
+test('each record row carries the files that belong to it', function () {
+    $record = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+    File::factory()->for($record)->create([
+        'file_name' => 'Deed of transfer.pdf',
+        'file_description' => 'Signed transfer deed',
+        'date_of_file' => '1893-04-12',
+    ]);
+
+    $this->get(route('admin.records.index'))
+        ->assertOk()
+        ->assertSee('Files on this record')
+        ->assertSee('Deed of transfer.pdf')
+        ->assertSee('Signed transfer deed')
+        ->assertSee('Apr 12, 1893')
+        ->assertSee('id="record-files-'.$record->id.'"', escape: false);
+});
+
+test('a record without files says so in its expanded panel', function () {
+    RecordsOwner::factory()->create(['owner_name' => 'Grace Hopper']);
+
+    $this->get(route('admin.records.index'))
+        ->assertOk()
+        ->assertSee('No files on this record yet.');
+});
+
 test('renders the record type and owner type of each record', function () {
     RecordsOwner::factory()->create([
         'owner_name' => 'Alan Turing',

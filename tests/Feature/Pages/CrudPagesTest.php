@@ -129,19 +129,19 @@ test('the records table lists the owner, owner type and record type', function (
         ->assertSee(route('admin.records.show', $record), escape: false);
 });
 
-test('every record row navigates to that record detail page', function () {
-    $records = RecordsOwner::factory()->count(3)->create();
+test('a record row toggles its file panel instead of navigating', function () {
+    $record = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+    File::factory()->for($record)->create(['file_name' => 'Deed of transfer.pdf']);
 
     $content = $this->get(route('admin.records.index'))->assertOk()->getContent();
 
-    preg_match_all("/Livewire\.navigate\('([^']+)'\)/", $content, $matches);
-
-    // The URLs are emitted by @js(), so slashes arrive as \/ until decoded.
-    $targets = array_map(fn (string $url) => json_decode('"'.$url.'"'), $matches[1]);
-
-    foreach ($records as $record) {
-        expect($targets)->toContain(route('admin.records.show', $record));
-    }
+    expect($content)
+        // The row used to navigate. It now discloses its files, and the owner
+        // name is the way to the record page.
+        ->not->toContain('Livewire.navigate', escape: false)
+        ->toContain(':aria-expanded="open"', escape: false)
+        ->toContain('id="record-files-'.$record->id.'"', escape: false)
+        ->toContain('Deed of transfer.pdf');
 });
 
 test('a record row click ignores clicks on its own links and buttons', function () {
@@ -149,9 +149,9 @@ test('a record row click ignores clicks on its own links and buttons', function 
 
     $content = $this->get(route('admin.records.index'))->assertOk()->getContent();
 
-    // Without this guard the row would navigate away the moment Edit or Delete
-    // was pressed, before the modal even opened.
-    expect($content)->toContain("closest('a, button')", escape: false)
+    // Without this guard the row would collapse the moment Edit, Delete or the
+    // owner name was pressed.
+    expect($content)->toContain("closest('a, button, input, label')", escape: false)
         ->and($content)->toContain('cursor-pointer', escape: false);
 });
 

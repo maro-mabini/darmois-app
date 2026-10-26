@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\File;
 use App\Models\OwnerType;
 use App\Models\RecordsOwner;
 use App\Models\RecordType;
@@ -56,6 +57,67 @@ test('searches the record type name', function () {
         ->set('search', 'lease')
         ->assertSee('Grace Hopper')
         ->assertDontSee('Ada Lovelace');
+});
+
+test('searches the names of the files on a record', function () {
+    $withFile = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+    File::factory()->for($withFile)->create(['file_name' => 'Deed of transfer.pdf']);
+
+    RecordsOwner::factory()->create(['owner_name' => 'Grace Hopper']);
+
+    Livewire::test('admin::records.index')
+        ->set('search', 'deed of transfer')
+        ->assertSee('Ada Lovelace')
+        ->assertDontSee('Grace Hopper');
+});
+
+test('searches the descriptions of the files on a record', function () {
+    $withFile = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+    File::factory()->for($withFile)->create([
+        'file_name' => 'Scan 0042.pdf',
+        'file_description' => 'Signed transfer deed',
+    ]);
+
+    RecordsOwner::factory()->create(['owner_name' => 'Grace Hopper']);
+
+    Livewire::test('admin::records.index')
+        ->set('search', 'signed transfer')
+        ->assertSee('Ada Lovelace')
+        ->assertDontSee('Grace Hopper');
+});
+
+test('a file match does not bypass the record type filter', function () {
+    ['land' => $land, 'lease' => $lease] = searchFixture();
+
+    $inLand = RecordsOwner::factory()->create([
+        'owner_name' => 'Ada Lovelace',
+        'record_type_id' => $land->id,
+    ]);
+    File::factory()->for($inLand)->create(['file_name' => 'Deed of transfer.pdf']);
+
+    $inLease = RecordsOwner::factory()->create([
+        'owner_name' => 'Grace Hopper',
+        'record_type_id' => $lease->id,
+    ]);
+    File::factory()->for($inLease)->create(['file_name' => 'Deed of transfer copy.pdf']);
+
+    Livewire::test('admin::records.index')
+        ->set('search', 'deed of transfer')
+        ->set('recordType', (string) $land->id)
+        ->assertSee('Ada Lovelace')
+        ->assertDontSee('Grace Hopper');
+});
+
+test('a percent sign in a file name is searched for literally', function () {
+    $withFile = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+    File::factory()->for($withFile)->create(['file_name' => 'Assessment 50% share.pdf']);
+
+    RecordsOwner::factory()->create(['owner_name' => 'Grace Hopper']);
+
+    Livewire::test('admin::records.index')
+        ->set('search', '50%')
+        ->assertSee('Ada Lovelace')
+        ->assertDontSee('Grace Hopper');
 });
 
 test('treats a blank or whitespace search as no filter', function (string $search) {

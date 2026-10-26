@@ -6,6 +6,7 @@ use App\Models\RecordType;
 use App\Models\RecordsOwner;
 use App\Models\Station;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -17,6 +18,16 @@ use Livewire\WithPagination;
 
 new class extends Component {
     use WithPagination;
+
+    /**
+     * The oldest year offered by the file date picker.
+     */
+    private const EARLIEST_YEAR = 1850;
+
+    /**
+     * How many years past the current one the picker reaches.
+     */
+    private const FUTURE_YEARS = 5;
 
     /**
      * The record being edited, or null when the form is creating one.
@@ -41,7 +52,22 @@ new class extends Component {
     public string $record_type_id = '';
 
     /**
-     * Free text matched against the owner name, owner type, and record type name.
+     * The record the file form is adding to, or null when it is closed.
+     */
+    public ?int $fileRecord = null;
+
+    public string $file_name = '';
+
+    public string $file_description = '';
+
+    /**
+     * The date the file was created, as Y-m-d, or an empty string for unset.
+     */
+    public string $date_of_file = '';
+
+    /**
+     * Free text matched against the owner name, owner type, record type name,
+     * and the name or description of any file on the record.
      */
     #[Url(as: 'search', except: '')]
     public string $search = '';
@@ -166,6 +192,61 @@ new class extends Component {
     }
 
     /**
+     * Reset the file form so it is ready to add a file to the given record.
+     *
+     * The record is looked up rather than trusted so a stale row cannot open a
+     * form that has nowhere to save to.
+     */
+    public function startCreateFile(int $record): void
+    {
+        $this->fileRecord = RecordsOwner::query()->findOrFail($record)->id;
+        $this->file_name = '';
+        $this->file_description = '';
+        $this->date_of_file = '';
+        $this->resetValidation();
+    }
+
+    /**
+     * Attach the file described by the form to the record it was opened from.
+     */
+    public function saveFile(): void
+    {
+        if ($this->fileRecord === null) {
+            return;
+        }
+
+        try {
+            $validated = $this->validate($this->fileRules());
+        } catch (ValidationException $exception) {
+            $this->dispatch('modal-open', 'file-form');
+
+            throw $exception;
+        }
+
+        // A blank optional field is stored as null, not as an empty string, so
+        // "has a description" stays a single question to ask of the column.
+        $dateOfFile = $validated['date_of_file'] ?? null;
+
+        RecordsOwner::query()
+            ->findOrFail($this->fileRecord)
+            ->files()
+            ->create([
+                'file_name' => $validated['file_name'],
+                'file_description' => $validated['file_description'] !== '' ? $validated['file_description'] : null,
+                'date_of_file' => $dateOfFile !== '' ? $dateOfFile : null,
+            ]);
+
+        $this->fileRecord = null;
+        $this->file_name = '';
+        $this->file_description = '';
+        $this->date_of_file = '';
+        $this->resetValidation();
+
+        $this->dispatch('modal-saved', 'file-form');
+        $this->dispatch('toast', message: 'File added.');
+    }
+
+    /**
      * Whether anything is currently narrowing the list.
      */
     #[Computed]
@@ -231,6 +312,59 @@ new class extends Component {
     }
 
     /**
+     * The twelve months, keyed by number so the value stays a plain integer.
+     *
+     * Names come from the intl-free month list rather than a formatted date so
+     * they do not shift with the app's locale or the server's clock.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function monthOptions(): array
+    {
+        return [
+            1 => 'January',
+            2 => 'February',
+            3 => 'March',
+            4 => 'April',
+            5 => 'May',
+            6 => 'June',
+            7 => 'July',
+            8 => 'August',
+            9 => 'September',
+            10 => 'October',
+            11 => 'November',
+            12 => 'December',
+        ];
+    }
+
+    /**
+     * The oldest and newest year the file date picker will offer.
+     *
+     * The same bounds the validation rules enforce, so the picker can never
+     * offer a year the server would then refuse.
+     *
+     * @return array{int, int}
+     */
+    #[Computed]
+    public function fileYearRange(): array
+    {
+        return [self::EARLIEST_YEAR, (int) now()->year + self::FUTURE_YEARS];
+    }
+
+    /**
+     * The owner of the record the file form is adding to, for the dialog's
+     * description, or null while no record is chosen.
+     */
+    #[Computed]
+    public function fileRecordName(): ?string
+    {
+        return $this->fileRecord === null
+            ? null
+            : RecordsOwner::query()->whereKey($this->fileRecord)->value('owner_name');
+    }
+
+    /**
      * @return array<string, array<int, mixed>>
      */
     protected function rules(): array
@@ -251,7 +385,31 @@ new class extends Component {
     }
 
     /**
-     * The records matching the current filters, newest first, each with its file count.
+     * The rules the file form is validated against.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    protected function fileRules(): array
+    {
+        $current = (int) now()->year;
+
+        return [
+            'file_name' => ['required', 'string', 'max:255'],
+            'file_description' => ['nullable', 'string', 'max:1000'],
+            // One value, not a month and a year that could disagree: the picker
+            // always hands over the whole date, so a partial one cannot arrive.
+            'date_of_file' => [
+                'nullable',
+                'date_format:Y-m-d',
+                'after_or_equal:'.self::EARLIEST_YEAR.'-01-01',
+                'before_or_equal:'.($current + self::FUTURE_YEARS).'-12-31',
+            ],
+        ];
+    }
+
+    /**
+     * The records matching the current filters, newest first, each with its
+     * file count and the files themselves for the expandable panel.
      *
      * @return LengthAwarePaginator<int, RecordsOwner>
      */
@@ -259,7 +417,13 @@ new class extends Component {
     public function records(): LengthAwarePaginator
     {
         return RecordsOwner::query()
-            ->with(['recordType', 'ownerType', 'location', 'station'])
+            ->with([
+                'recordType',
+                'ownerType',
+                'location',
+                'station',
+                'files' => fn (HasMany $query) => $query->latest(),
+            ])
             ->withCount('files')
             ->when($this->searchTerm() !== '', function (Builder $query) {
                 $term = '%'.$this->likePattern($this->searchTerm()).'%';
@@ -273,7 +437,14 @@ new class extends Component {
                         ->orWhereHas(
                             'recordType',
                             fn (Builder $query) => $query->whereRaw("name LIKE ? ESCAPE '\\'", [$term]),
-                        );
+                        )
+                        // A record is a folder: finding it by something written
+                        // on one of the papers inside is as useful as finding it
+                        // by its own label.
+                        ->orWhereHas('files', function (Builder $query) use ($term) {
+                            $query->whereRaw("file_name LIKE ? ESCAPE '\\'", [$term])
+                                ->orWhereRaw("file_description LIKE ? ESCAPE '\\'", [$term]);
+                        });
                 });
             })
             ->when(
@@ -367,7 +538,7 @@ new class extends Component {
                 id="record-search"
                 type="search"
                 wire:model.live.debounce.300ms="search"
-                placeholder="Search owner, type or record type"
+                placeholder="Search owner, type, record type or file"
                 autocomplete="off"
                 class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 shadow-xs placeholder-gray-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-hidden [&::-webkit-search-cancel-button]:appearance-none dark:border-gray-700 dark:bg-white/5 dark:text-white dark:placeholder-gray-300"
             />
@@ -402,6 +573,9 @@ new class extends Component {
         <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
             <thead class="bg-gray-50 dark:bg-gray-950">
                 <tr>
+                    <th scope="col" class="w-10 py-3 pl-4 pr-1">
+                        <span class="sr-only">Show files</span>
+                    </th>
                     <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Owner</th>
                     <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Location</th>
                     <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Station</th>
@@ -414,14 +588,43 @@ new class extends Component {
                     </th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
-                @forelse ($this->records as $record)
+            @forelse ($this->records as $record)
+                {{--
+                    One <tbody> per record, so the row and the file panel below it
+                    share an Alpine scope: clicking the row flips `open`, and the
+                    panel is part of the same record rather than a sibling whose
+                    state would have to be tracked by id on the component.
+                --}}
+                <tbody
+                    wire:key="record-{{ $record->id }}"
+                    x-data="{ open: false }"
+                    class="divide-y divide-gray-200 dark:divide-gray-800"
+                >
                     <tr
-                        wire:key="record-{{ $record->id }}"
-                        x-data
-                        x-on:click="if (! $event.target.closest('a, button')) Livewire.navigate(@js(route('admin.records.show', $record)))"
-                        class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-950"
+                        x-on:click="if (! $event.target.closest('a, button, input, label')) open = ! open"
+                        x-on:keydown.enter.prevent="open = ! open"
+                        x-on:keydown.space.prevent="open = ! open"
+                        tabindex="0"
+                        :aria-expanded="open"
+                        :aria-controls="'record-files-{{ $record->id }}'"
+                        class="cursor-pointer select-none hover:bg-gray-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600 dark:hover:bg-gray-950"
                     >
+                        <td class="py-3 pl-4 pr-1 text-gray-400 dark:text-gray-300">
+                            <span
+                                class="inline-flex text-current transition-transform duration-150"
+                                x-bind:class="{ 'rotate-90': open }"
+                            >
+                                <svg
+                                    class="size-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </span>
+                        </td>
                         <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
                             <a
                                 href="{{ route('admin.records.show', $record) }}"
@@ -472,9 +675,70 @@ new class extends Component {
                             </button>
                         </td>
                     </tr>
-                @empty
+
+                    <tr
+                        id="record-files-{{ $record->id }}"
+                        x-show="open"
+                        x-cloak
+                        class="bg-gray-50/70 dark:bg-gray-950/50"
+                    >
+                        <td colspan="9" class="px-4 py-4">
+                            <div class="flex items-center justify-between gap-4">
+                                <h2 class="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                                    Files on this record
+
+                                    <span class="inline-flex rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium tabular-nums text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                        {{ $record->files_count }}
+                                    </span>
+                                </h2>
+
+                                <button
+                                    type="button"
+                                    x-on:click="$wire.startCreateFile({{ $record->id }}).then(() => $dispatch('modal-open', 'file-form'))"
+                                    class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-brand-500"
+                                >
+                                    <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15" />
+                                    </svg>
+
+                                    Add file
+                                </button>
+                            </div>
+
+                            @if ($record->files->isEmpty())
+                                <p class="mt-3 text-sm text-gray-500 dark:text-gray-300">
+                                    No files on this record yet.
+                                </p>
+                            @else
+                                <ul role="list" class="mt-3 divide-y divide-gray-200 dark:divide-gray-800">
+                                    @foreach ($record->files as $file)
+                                        <li wire:key="record-{{ $record->id }}-file-{{ $file->id }}" class="py-2">
+                                            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                                                <span class="font-medium text-gray-900 dark:text-white">
+                                                    {{ $file->file_name }}
+                                                </span>
+
+                                                <span class="text-xs whitespace-nowrap tabular-nums text-gray-500 dark:text-gray-300">
+                                                    {{ $file->date_of_file?->toFormattedDateString() ?? 'No date' }}
+                                                </span>
+                                            </div>
+
+                                            @if ($file->file_description)
+                                                <p class="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
+                                                    {{ $file->file_description }}
+                                                </p>
+                                            @endif
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                        </td>
+                    </tr>
+                </tbody>
+            @empty
+                <tbody>
                     <tr>
-                        <td colspan="8" class="px-4 py-16 text-center text-gray-500 dark:text-gray-300">
+                        <td colspan="9" class="px-4 py-16 text-center text-gray-500 dark:text-gray-300">
                             @if ($this->isFiltered)
                                 No records match your search.
                                 <button
@@ -489,8 +753,8 @@ new class extends Component {
                             @endif
                         </td>
                     </tr>
-                @endforelse
-            </tbody>
+                </tbody>
+            @endforelse
         </table>
     </div>
 
@@ -564,6 +828,48 @@ new class extends Component {
                 class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-500"
             >
                 {{ $this->editing === null ? 'Create record' : 'Save changes' }}
+            </button>
+        </x-slot:footer>
+    </x-modal>
+
+    <x-modal
+        id="file-form"
+        title="Add file"
+        :description="$this->fileRecordName ? 'Attach a file to '.$this->fileRecordName.'.' : null"
+    >
+        <form id="file-form-element" wire:submit="saveFile" class="space-y-5">
+            <x-form.field label="File name" name="file_name" required>
+                <x-form.input name="file_name" autocomplete="off" />
+            </x-form.field>
+
+            <x-form.field label="Description" name="file_description">
+                <x-form.textarea name="file_description" rows="3" />
+            </x-form.field>
+
+            <x-form.date-picker
+                name="date_of_file"
+                label="Date of file"
+                :months="$this->monthOptions"
+                :min-year="$this->fileYearRange[0]"
+                :max-year="$this->fileYearRange[1]"
+            />
+        </form>
+
+        <x-slot:footer>
+            <button
+                type="button"
+                x-on:click="$refs.dialog.close()"
+                class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10"
+            >
+                Cancel
+            </button>
+
+            <button
+                type="submit"
+                form="file-form-element"
+                class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-500"
+            >
+                Add file
             </button>
         </x-slot:footer>
     </x-modal>

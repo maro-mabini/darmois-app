@@ -311,6 +311,61 @@ test('deletes a record and its files', function () {
         ->and(File::query()->count())->toBe(0);
 });
 
+test('adds a file to a record from the records list', function () {
+    $record = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+
+    Livewire::test('admin::records.index')
+        ->call('startCreateFile', $record->id)
+        ->assertSet('fileRecord', $record->id)
+        ->assertSee('Attach a file to Ada Lovelace.')
+        ->set('file_name', 'Deed of transfer.pdf')
+        ->set('file_description', 'Signed transfer deed')
+        ->set('date_of_file', '1893-04-12')
+        ->call('saveFile')
+        ->assertHasNoErrors()
+        ->assertSet('fileRecord', null)
+        ->assertDispatched('modal-saved', 'file-form')
+        ->assertDispatched('toast', message: 'File added.')
+        // The expanded row lists the file without a reload.
+        ->assertSee('Deed of transfer.pdf');
+
+    expect($record->files()->count())->toBe(1);
+
+    $file = $record->files()->firstOrFail();
+
+    expect($file)
+        ->file_name->toBe('Deed of transfer.pdf')
+        ->file_description->toBe('Signed transfer deed')
+        ->and($file->date_of_file?->format('Y-m-d'))->toBe('1893-04-12');
+});
+
+test('the list file form requires a name and reopens for the same record', function () {
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.index')
+        ->call('startCreateFile', $record->id)
+        ->call('saveFile')
+        ->assertHasErrors('file_name')
+        ->assertSet('fileRecord', $record->id)
+        ->assertDispatched('modal-open', 'file-form');
+
+    expect($record->files()->count())->toBe(0);
+});
+
+test('a file cannot be added to a record that does not exist', function () {
+    Livewire::test('admin::records.index')
+        ->call('startCreateFile', 9999)
+        ->assertNotFound();
+});
+
+test('saving the list file form without a record stores nothing', function () {
+    Livewire::test('admin::records.index')
+        ->set('file_name', 'Orphan.pdf')
+        ->call('saveFile');
+
+    expect(File::query()->count())->toBe(0);
+});
+
 test('shows a record with its files', function () {
     $record = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
     $recordType = RecordType::factory()->create(['name' => 'Land Registry']);
