@@ -4,11 +4,12 @@
     Shell for every page component. The page content arrives as $slot; this file
     owns the document head, the navigation, and the light/dark canvas.
 
-    Two independent pieces of state:
-      collapsed - desktop rail vs full sidebar, persisted so a reload keeps it
-      open      - the mobile drawer, deliberately not persisted
-      theme     - 'light', 'dark', or 'system' until the user picks a side
-      palette   - 'dar' (the seal's green and gold) or 'iris', also persisted
+    The shell's state, all of it client-side:
+      collapsed      - desktop rail vs full sidebar, persisted so a reload keeps it
+      open           - the mobile drawer, deliberately not persisted
+      appearanceOpen - the floating appearance panel, expanded on demand
+      theme          - 'light', 'dark', or 'system' until the user picks a side
+      palette        - 'dar' (the seal's green and gold) or 'iris', also persisted
 --}}
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
@@ -28,6 +29,7 @@
     x-data="{
         collapsed: localStorage.getItem('darmois:sidebar-collapsed') === '1',
         open: false,
+        appearanceOpen: false,
         theme: localStorage.getItem('darmois:theme') ?? 'system',
         palette: localStorage.getItem('darmois:palette') ?? 'dar',
         dark: false,
@@ -62,9 +64,9 @@
             this.dark = this.theme === 'dark'
                 || (this.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         },
-        toggleTheme() {
-            this.theme = this.dark ? 'light' : 'dark';
-            localStorage.setItem('darmois:theme', this.theme);
+        setTheme(theme) {
+            this.theme = theme;
+            localStorage.setItem('darmois:theme', theme);
             this.applyTheme();
         },
         /*
@@ -138,7 +140,7 @@
         >
             <button
                 type="button"
-                x-on:click="open = true"
+                x-on:click="open = true; appearanceOpen = false"
                 class="-ml-1 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
                 aria-controls="app-sidebar"
                 aria-label="Open navigation"
@@ -311,112 +313,182 @@
                     </a>
                 @endforeach
             </nav>
-
-            {{--
-                Palette switch, above the light/dark switch. Two fixed choices
-                rather than a cycle, so both are visible and the current one can
-                carry aria-pressed. The swatches are literal colours, not
-                `brand-*`: a preview drawn with the live palette would show two
-                identical dots.
-
-                Collapsed, the rail is 56px wide, so the pair stacks instead of
-                shrinking to unreadable dots.
-            --}}
-            <div class="border-t border-gray-200 p-3 dark:border-gray-800">
-                <p
-                    x-show="! collapsed"
-                    x-cloak
-                    class="mb-1.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-300"
-                >
-                    Palette
-                </p>
-
-                <div
-                    class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-white/5"
-                    :class="collapsed ? 'flex-col' : ''"
-                    role="group"
-                    aria-label="Color palette"
-                >
-                    <button
-                        type="button"
-                        x-on:click="setPalette('dar')"
-                        :aria-pressed="palette === 'dar'"
-                        aria-label="DAR green and gold palette"
-                        title="DAR green and gold"
-                        :class="palette === 'dar'
-                            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-                            : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
-                        class="flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-                    >
-                        {{-- Literal colours, not `brand-*`: the swatch previews
-                             a palette that is not the one currently on. --}}
-                        <span class="flex gap-1" aria-hidden="true">
-                            <span class="size-3 rounded-full" style="background-color: #1b6c47"></span>
-                            <span class="size-3 rounded-full" style="background-color: #f5c518"></span>
-                        </span>
-
-                        <span x-show="! collapsed" x-cloak>DAR</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        x-on:click="setPalette('iris')"
-                        :aria-pressed="palette === 'iris'"
-                        aria-label="Iris indigo and violet palette"
-                        title="Iris indigo and violet"
-                        :class="palette === 'iris'
-                            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-                            : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
-                        class="flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-                    >
-                        <span class="flex gap-1" aria-hidden="true">
-                            <span class="size-3 rounded-full" style="background-color: #4f46e5"></span>
-                            <span class="size-3 rounded-full" style="background-color: #c084fc"></span>
-                        </span>
-
-                        <span x-show="! collapsed" x-cloak>Iris</span>
-                    </button>
-                </div>
-            </div>
-
-            {{--
-                Theme switch, pinned to the foot of the sidebar. It reads as a
-                nav item so it sits in the same column as the links, but it is a
-                button: the choice is local state, not a destination.
-
-                The icon and the label both name the theme the button moves to,
-                so the control says what it will do rather than what is on.
-            --}}
-            <div class="border-t border-gray-200 p-3 dark:border-gray-800">
-                <button
-                    type="button"
-                    x-on:click="toggleTheme()"
-                    :aria-pressed="dark"
-                    aria-label="Switch theme"
-                    :aria-label="dark ? 'Switch to light theme' : 'Switch to dark theme'"
-                    :title="collapsed ? (dark ? 'Switch to light theme' : 'Switch to dark theme') : null"
-                    class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-gray-300 dark:hover:bg-white/5"
-                >
-                    <span class="flex size-5 shrink-0 items-center justify-center">
-                        {{-- Light: the button moves to dark, so it offers a moon. --}}
-                        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" x-show="! dark">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                        </svg>
-
-                        {{-- Dark: the button moves back to light, so it offers a sun. --}}
-                        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" x-show="dark" x-cloak>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-                        </svg>
-                    </span>
-
-                    <span x-show="! collapsed" x-cloak class="truncate" x-text="dark ? 'Light theme' : 'Dark theme'"></span>
-                </button>
-            </div>
         </aside>
 
         <main class="min-w-0 flex-1">
             {{ $slot }}
         </main>
+    </div>
+
+    {{--
+        Appearance control.
+
+        The theme and palette used to sit at the foot of the sidebar, where they
+        were only reachable after scrolling the nav and disappeared behind the
+        drawer on a phone. A floating button keeps them one tap away from any
+        page and any scroll position.
+
+        It is a disclosure, not a menu: the button carries aria-expanded and
+        aria-controls, the panel is toggled with Alpine, and an outside click or
+        Escape closes it. Both choices stay client preferences in localStorage,
+        so nothing here touches the server.
+
+        The wrapper is hidden while the mobile drawer is open -- it sits above
+        the drawer's z-index, so otherwise it would float over the scrim.
+    --}}
+    <div
+        x-show="! open"
+        x-on:click.outside="appearanceOpen = false"
+        x-on:keydown.escape.window="appearanceOpen = false"
+        class="fixed right-5 bottom-5 z-[550] flex flex-col items-end gap-3 sm:right-6 sm:bottom-6"
+    >
+        {{--
+            The panel. Stacked above the button by DOM order, and scaled from
+            the bottom-right corner so it grows out of the control rather than
+            appearing from nowhere.
+        --}}
+        <div
+            id="appearance-panel"
+            x-show="appearanceOpen"
+            x-cloak
+            x-transition:enter="transition ease-out duration-150"
+            x-transition:enter-start="translate-y-2 scale-95 opacity-0"
+            x-transition:enter-end="translate-y-0 scale-100 opacity-100"
+            x-transition:leave="transition ease-in duration-100"
+            x-transition:leave-start="translate-y-0 scale-100 opacity-100"
+            x-transition:leave-end="translate-y-2 scale-95 opacity-0"
+            class="w-72 origin-bottom-right rounded-2xl border border-gray-200 bg-white p-3 shadow-xl ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-800 dark:ring-white/10"
+            role="group"
+            aria-labelledby="appearance-panel-title"
+        >
+            <p
+                id="appearance-panel-title"
+                class="px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300"
+            >
+                Appearance
+            </p>
+
+            <div class="space-y-3">
+                <div>
+                    <p class="mb-1.5 px-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+                        Theme
+                    </p>
+
+                    <div
+                        class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-white/5"
+                        role="group"
+                        aria-label="Color theme"
+                    >
+                        <button
+                            type="button"
+                            x-on:click="setTheme('system')"
+                            :aria-pressed="theme === 'system'"
+                            :class="theme === 'system'
+                                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                                : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
+                            class="flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                        >
+                            System
+                        </button>
+
+                        <button
+                            type="button"
+                            x-on:click="setTheme('light')"
+                            :aria-pressed="theme === 'light'"
+                            :class="theme === 'light'
+                                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                                : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
+                            class="flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                        >
+                            Light
+                        </button>
+
+                        <button
+                            type="button"
+                            x-on:click="setTheme('dark')"
+                            :aria-pressed="theme === 'dark'"
+                            :class="theme === 'dark'
+                                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                                : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
+                            class="flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                        >
+                            Dark
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="mb-1.5 px-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+                        Palette
+                    </p>
+
+                    <div
+                        class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-white/5"
+                        role="group"
+                        aria-label="Color palette"
+                    >
+                        <button
+                            type="button"
+                            x-on:click="setPalette('dar')"
+                            :aria-pressed="palette === 'dar'"
+                            aria-label="DAR green and gold palette"
+                            title="DAR green and gold"
+                            :class="palette === 'dar'
+                                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                                : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
+                            class="flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                        >
+                            {{-- Literal colours, not `brand-*`: the swatch
+                                 previews a palette that is not the one on. --}}
+                            <span class="flex gap-1" aria-hidden="true">
+                                <span class="size-3 rounded-full" style="background-color: #1b6c47"></span>
+                                <span class="size-3 rounded-full" style="background-color: #f5c518"></span>
+                            </span>
+
+                            <span>DAR</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            x-on:click="setPalette('iris')"
+                            :aria-pressed="palette === 'iris'"
+                            aria-label="Iris indigo and violet palette"
+                            title="Iris indigo and violet"
+                            :class="palette === 'iris'
+                                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                                : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
+                            class="flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                        >
+                            <span class="flex gap-1" aria-hidden="true">
+                                <span class="size-3 rounded-full" style="background-color: #4f46e5"></span>
+                                <span class="size-3 rounded-full" style="background-color: #c084fc"></span>
+                            </span>
+
+                            <span>Iris</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- The floating trigger. The icon swaps to a close mark while open. --}}
+        <button
+            type="button"
+            x-on:click="appearanceOpen = ! appearanceOpen"
+            :aria-expanded="appearanceOpen"
+            aria-controls="appearance-panel"
+            aria-label="Appearance settings"
+            :title="appearanceOpen ? 'Hide appearance settings' : 'Show appearance settings'"
+            class="flex size-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700 hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 active:scale-95"
+        >
+            <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" x-show="! appearanceOpen">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4.098 19.902a3.75 3.75 0 0 0 5.304 0l6.401-6.402M6.75 21A3.75 3.75 0 0 1 3 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 0 0 3.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008Z" />
+            </svg>
+
+            <svg class="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" x-show="appearanceOpen" x-cloak>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+        </button>
     </div>
 
     {{--

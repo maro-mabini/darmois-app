@@ -71,11 +71,13 @@ test('the sidebar marks the current section for assistive technology', function 
         ->assertSee('aria-current="page"', escape: false);
 });
 
-test('the sidebar offers a light and dark theme switch', function () {
+test('the appearance control offers light, dark, and system themes', function () {
     $this->get(route('admin.records.index'))
         ->assertOk()
-        ->assertSee('toggleTheme()', escape: false)
-        ->assertSee('aria-label="Switch theme"', escape: false);
+        ->assertSee('aria-label="Appearance settings"', escape: false)
+        ->assertSee("setTheme('system')", escape: false)
+        ->assertSee("setTheme('light')", escape: false)
+        ->assertSee("setTheme('dark')", escape: false);
 });
 
 test('the collapse toggle floats on the sidebar edge and re-centres when collapsed', function () {

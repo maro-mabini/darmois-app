@@ -134,7 +134,7 @@ test('the iris palette re-points both ramps, so no view needs palette classes', 
         ->not->toContain('#f5c518');
 });
 
-test('the sidebar offers both palettes and remembers the choice', function () {
+test('the appearance control offers both palettes and remembers the choice', function () {
     $html = test()->get(route('admin.dashboard'))->assertOk()->getContent();
 
     expect($html)
@@ -142,6 +142,27 @@ test('the sidebar offers both palettes and remembers the choice', function () {
         ->toContain("setPalette('dar')")
         ->toContain("setPalette('iris')")
         ->toContain('darmois:palette');
+});
+
+test('the appearance control is a floating panel that expands and collapses', function () {
+    $html = test()->get(route('admin.dashboard'))->assertOk()->getContent();
+
+    expect($html)
+        // One trigger owns the panel, and says whether it is open.
+        ->toContain('aria-label="Appearance settings"')
+        ->toContain('aria-controls="appearance-panel"')
+        ->toContain(':aria-expanded="appearanceOpen"')
+        ->toContain('x-on:click="appearanceOpen = ! appearanceOpen"')
+        ->toContain('id="appearance-panel"')
+        ->toContain('x-show="appearanceOpen"')
+        // It is a disclosure, so it closes on the two expected gestures.
+        ->toContain('x-on:click.outside="appearanceOpen = false"')
+        ->toContain('x-on:keydown.escape.window="appearanceOpen = false"')
+        // The light/dark choice moved in with the palettes.
+        ->toContain("setTheme('system')")
+        ->toContain("setTheme('light')")
+        ->toContain("setTheme('dark')")
+        ->toContain('darmois:theme');
 });
 
 test('dark mode placeholders are not gray-400, which is only 2.73:1 on the input background', function () {

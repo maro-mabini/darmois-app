@@ -80,7 +80,7 @@
     x-on:toast.window="if ($event.detail?.message) add($event.detail.message)"
     aria-live="polite"
     aria-label="Notifications"
-    class="pointer-events-none fixed inset-x-0 bottom-0 z-[600] flex flex-col items-center gap-2 p-4 sm:inset-x-auto sm:right-0 sm:items-end"
+    class="pointer-events-none fixed inset-x-0 bottom-0 z-[600] flex flex-col items-center gap-2 px-4 pt-4 pb-24 sm:inset-x-auto sm:right-0 sm:items-end sm:py-4 sm:pr-24 sm:pl-4"
 >
     <template x-for="item in items" :key="item.id">
         <div
