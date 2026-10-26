@@ -137,11 +137,25 @@ test('a record row toggles its file panel instead of navigating', function () {
 
     expect($content)
         // The row used to navigate. It now discloses its files, and the owner
-        // name is the way to the record page.
+        // name and View action are the way to the record page.
         ->not->toContain('Livewire.navigate', escape: false)
         ->toContain(':aria-expanded="open"', escape: false)
         ->toContain('id="record-files-'.$record->id.'"', escape: false)
         ->toContain('Deed of transfer.pdf');
+});
+
+test('the record actions offer view, add file, edit and delete', function () {
+    $record = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+
+    $content = $this->get(route('admin.records.index'))->assertOk()->getContent();
+
+    expect(substr_count($content, route('admin.records.show', $record)))
+        // Once on the owner name, once on View.
+        ->toBeGreaterThanOrEqual(2)
+        ->and($content)->toContain('View', 'Add file', 'Edit', 'Delete')
+        // Adding from the row also expands it, so the saved file is visible.
+        ->toContain('startCreateFile('.$record->id.')', escape: false)
+        ->toContain('open = true', escape: false);
 });
 
 test('a record row click ignores clicks on its own links and buttons', function () {
