@@ -423,7 +423,7 @@
                     </p>
 
                     <div
-                        class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-white/5"
+                        class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-white/5"
                         role="group"
                         aria-label="Color palette"
                     >
@@ -465,6 +465,46 @@
                             </span>
 
                             <span>Iris</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            x-on:click="setPalette('ai2x')"
+                            :aria-pressed="palette === 'ai2x'"
+                            aria-label="Ai2x green and white palette"
+                            title="Ai2x green and white"
+                            :class="palette === 'ai2x'
+                                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                                : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
+                            class="flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                        >
+                            <span class="flex gap-1" aria-hidden="true">
+                                <span class="size-3 rounded-full" style="background-color: #047857"></span>
+                                {{-- White needs its own hairline on the pale
+                                     control; the other dots carry themselves. --}}
+                                <span class="size-3 rounded-full" style="background-color: #ffffff; box-shadow: inset 0 0 0 1px #d1d5db"></span>
+                            </span>
+
+                            <span>Ai2x</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            x-on:click="setPalette('dingdang')"
+                            :aria-pressed="palette === 'dingdang'"
+                            aria-label="DingDang pink and purple palette"
+                            title="DingDang pink and purple"
+                            :class="palette === 'dingdang'
+                                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                                : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
+                            class="flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                        >
+                            <span class="flex gap-1" aria-hidden="true">
+                                <span class="size-3 rounded-full" style="background-color: #be185d"></span>
+                                <span class="size-3 rounded-full" style="background-color: #c084fc"></span>
+                            </span>
+
+                            <span>DingDang</span>
                         </button>
                     </div>
                 </div>

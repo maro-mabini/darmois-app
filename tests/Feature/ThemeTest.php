@@ -114,14 +114,14 @@ test('the default palette is the DAR green and gold', function () {
     }
 });
 
-test('the iris palette re-points both ramps, so no view needs palette classes', function () {
+test('every alternate palette re-points both ramps, so no view needs palette classes', function (string $palette) {
     $css = file_get_contents(resource_path('css/app.css'));
 
-    expect(preg_match("/:root\[data-palette='iris'\]\s*\{(.*?)\}/s", $css, $matches))->toBe(1);
+    expect(preg_match("/:root\[data-palette='{$palette}'\]\s*\{(.*?)\}/s", $css, $matches))->toBe(1);
 
-    $iris = $matches[1];
+    $ramp = $matches[1];
 
-    expect($iris)
+    expect($ramp)
         ->toContain('--color-brand-50')
         ->toContain('--color-brand-600')
         ->toContain('--color-brand-950')
@@ -129,18 +129,24 @@ test('the iris palette re-points both ramps, so no view needs palette classes', 
         ->toContain('--color-gold-400')
         ->toContain('--color-gold-950')
         // The DAR values must not leak through: the whole point is that the
-        // same variable is read by both palettes.
+        // same variable is read by every palette.
         ->not->toContain('#1b6c47')
         ->not->toContain('#f5c518');
-});
+})->with([
+    'iris' => ['iris'],
+    'ai2x' => ['ai2x'],
+    'dingdang' => ['dingdang'],
+]);
 
-test('the appearance control offers both palettes and remembers the choice', function () {
+test('the appearance control offers every palette and remembers the choice', function () {
     $html = test()->get(route('admin.dashboard'))->assertOk()->getContent();
 
     expect($html)
         ->toContain('aria-label="Color palette"')
         ->toContain("setPalette('dar')")
         ->toContain("setPalette('iris')")
+        ->toContain("setPalette('ai2x')")
+        ->toContain("setPalette('dingdang')")
         ->toContain('darmois:palette');
 });
 
