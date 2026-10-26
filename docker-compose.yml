@@ -1,0 +1,55 @@
+name: darmois
+
+services:
+  app:
+    build:
+      context: .
+    image: darmois-app:latest
+    container_name: darmois-app
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env.docker
+    ports:
+      # http://192.168.1.101:8080 — the left side is 8080 because Herd already
+      # owns port 80 on this host. Change it if 8080 is taken.
+      - "8080:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - darmois
+
+  db:
+    image: postgres:17-alpine
+    container_name: darmois-db
+    restart: unless-stopped
+    # Same file as the app: POSTGRES_* initialise the server, DB_* tell Laravel
+    # how to reach it. Keep the names and the password in sync.
+    env_file:
+      - .env.docker
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - darmois
+    # Uncomment to reach Postgres from a database GUI on the host.
+    # ports:
+    #   - "5432:5432"
+
+volumes:
+  db-data:
+
+networks:
+  darmois:

@@ -7,6 +7,7 @@
     Two independent pieces of state:
       collapsed - desktop rail vs full sidebar, persisted so a reload keeps it
       open      - the mobile drawer, deliberately not persisted
+      theme     - 'light', 'dark', or 'system' until the user picks a side
 --}}
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
@@ -16,16 +17,52 @@
 
     <title>{{ $title ?? config('app.name') }}</title>
 
+    {{-- The agency seal, used for the tab and for a home-screen shortcut. --}}
+    <link rel="icon" type="image/png" href="{{ asset('storage/dar_logo.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('storage/dar_logo_large.png') }}">
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body
     x-data="{
         collapsed: localStorage.getItem('darmois:sidebar-collapsed') === '1',
         open: false,
+        theme: localStorage.getItem('darmois:theme') ?? 'system',
+        dark: false,
         init() {
+            this.applyTheme();
+
             this.$watch('collapsed', (value) => {
                 localStorage.setItem('darmois:sidebar-collapsed', value ? '1' : '0');
             });
+
+            // With no explicit choice the OS stays in charge, including when it
+            // changes while the page is open. A chosen theme is left alone.
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                if (this.theme === 'system') {
+                    this.applyTheme();
+                }
+            });
+        },
+        /*
+         * The class goes on <html>, not <body>, so it also reaches anything
+         * painted outside the body -- the backdrop of a native dialog, for one.
+         * 'system' removes both classes and leaves the decision to the
+         * prefers-color-scheme rule in app.css.
+         */
+        applyTheme() {
+            const root = document.documentElement;
+
+            root.classList.toggle('dark', this.theme === 'dark');
+            root.classList.toggle('light', this.theme === 'light');
+
+            this.dark = this.theme === 'dark'
+                || (this.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        },
+        toggleTheme() {
+            this.theme = this.dark ? 'light' : 'dark';
+            localStorage.setItem('darmois:theme', this.theme);
+            this.applyTheme();
         },
     }"
     class="h-full bg-gray-50 font-sans text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100"
@@ -56,6 +93,18 @@
                 'label' => 'Owner types',
                 'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />',
             ],
+            [
+                'route' => 'admin.locations.index',
+                'pattern' => 'admin.locations.*',
+                'label' => 'Locations',
+                'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />',
+            ],
+            [
+                'route' => 'admin.stations.index',
+                'pattern' => 'admin.stations.*',
+                'label' => 'Stations',
+                'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />',
+            ],
         ];
     @endphp
 
@@ -67,7 +116,7 @@
             <button
                 type="button"
                 x-on:click="open = true"
-                class="-ml-1 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
+                class="-ml-1 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
                 aria-controls="app-sidebar"
                 aria-label="Open navigation"
             >
@@ -75,6 +124,14 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 6.75h16.5m-16.5 5.25h16.5m-16.5 5.25h16.5" />
                 </svg>
             </button>
+
+            <img
+                src="{{ asset('storage/dar_logo_large.png') }}"
+                alt=""
+                width="300"
+                height="300"
+                class="size-8 shrink-0 object-contain p-[3px]"
+            >
 
             <span class="text-sm font-semibold tracking-tight">{{ config('app.name') }}</span>
         </header>
@@ -111,23 +168,32 @@
                 header's edges. Horizontal padding lives on the children, not
                 here, so `left-full` lands exactly on the sidebar border.
             --}}
-            <div class="relative flex h-16 items-center border-b border-gray-200 dark:border-gray-800">
+            <div class="relative flex h-16 items-center border-b-2 border-gold-400 dark:border-gold-500">
                 <a
                     href="{{ route('admin.dashboard') }}"
                     wire:navigate
                     :class="collapsed ? 'justify-center' : ''"
-                    class="mx-3 flex min-w-0 flex-1 items-center gap-2.5 rounded-md py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                    aria-label="{{ config('app.name') }} home"
+                    class="mx-3 flex min-w-0 flex-1 items-center gap-2.5 rounded-md py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                 >
-                    <span class="flex size-8 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-white">
-                        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
-                        </svg>
-                    </span>
+                    {{--
+                        The agency seal itself. The PNG is transparent where the
+                        gold letters sit, so the mark takes on whatever the
+                        sidebar is: light leaves, dark leaves. Nothing is painted
+                        behind it and nothing clips its edges.
+                    --}}
+                    <img
+                        src="{{ asset('storage/dar_logo_large.png') }}"
+                        alt=""
+                        width="300"
+                        height="300"
+                        class="size-8 shrink-0 object-contain p-[3px]"
+                    >
 
                     <span
                         x-show="! collapsed"
                         x-cloak
-                        class="truncate text-sm font-semibold tracking-tight"
+                        class="whitespace-nowrap text-sm font-semibold tracking-tight"
                     >{{ config('app.name') }}</span>
                 </a>
 
@@ -146,7 +212,7 @@
                     type="button"
                     x-on:click="collapsed = ! collapsed"
                     :class="collapsed ? 'left-1/2' : 'left-full'"
-                    class="absolute top-1/2 z-[500] hidden size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 opacity-0 shadow-sm transition-all duration-300 pointer-events-none hover:bg-gray-100 hover:text-gray-900 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 lg:flex dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                    class="absolute top-1/2 z-[500] hidden size-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 opacity-0 shadow-sm transition-all duration-300 pointer-events-none hover:bg-gray-100 hover:text-gray-900 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 lg:flex dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
                     :aria-expanded="! collapsed"
                     aria-controls="app-sidebar"
                 >
@@ -176,7 +242,7 @@
                 <button
                     type="button"
                     x-on:click="open = false"
-                    class="mr-3 shrink-0 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 lg:hidden dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
+                    class="mr-3 shrink-0 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 lg:hidden dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
                 >
                     <span class="sr-only">Close navigation</span>
                     <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -196,13 +262,22 @@
                         href="{{ route($item['route']) }}"
                         wire:navigate
                         @class([
-                            'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600',
-                            'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300' => $active,
+                            'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+                            'bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300' => $active,
                             'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5' => ! $active,
                         ])
-                        :aria-current="{{ $active ? 'page' : 'false' }}"
+                        aria-current="{{ $active ? 'page' : 'false' }}"
                         :title="collapsed ? @js($item['label']) : null"
                     >
+                        {{--
+                            The gold rail is the accent half of the DAR palette.
+                            Decorative: the tinted row, the text color and
+                            aria-current already carry the active state.
+                        --}}
+                        @if ($active)
+                            <span class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-gold-400" aria-hidden="true"></span>
+                        @endif
+
                         <span class="flex size-5 shrink-0 items-center justify-center">
                             <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 {!! $item['icon'] !!}
@@ -213,6 +288,40 @@
                     </a>
                 @endforeach
             </nav>
+
+            {{--
+                Theme switch, pinned to the foot of the sidebar. It reads as a
+                nav item so it sits in the same column as the links, but it is a
+                button: the choice is local state, not a destination.
+
+                The icon and the label both name the theme the button moves to,
+                so the control says what it will do rather than what is on.
+            --}}
+            <div class="border-t border-gray-200 p-3 dark:border-gray-800">
+                <button
+                    type="button"
+                    x-on:click="toggleTheme()"
+                    :aria-pressed="dark"
+                    aria-label="Switch theme"
+                    :aria-label="dark ? 'Switch to light theme' : 'Switch to dark theme'"
+                    :title="collapsed ? (dark ? 'Switch to light theme' : 'Switch to dark theme') : null"
+                    class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-gray-300 dark:hover:bg-white/5"
+                >
+                    <span class="flex size-5 shrink-0 items-center justify-center">
+                        {{-- Light: the button moves to dark, so it offers a moon. --}}
+                        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" x-show="! dark">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                        </svg>
+
+                        {{-- Dark: the button moves back to light, so it offers a sun. --}}
+                        <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" x-show="dark" x-cloak>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                        </svg>
+                    </span>
+
+                    <span x-show="! collapsed" x-cloak class="truncate" x-text="dark ? 'Light theme' : 'Dark theme'"></span>
+                </button>
+            </div>
         </aside>
 
         <main class="min-w-0 flex-1">

@@ -1,9 +1,11 @@
 <?php
 
 use App\Models\File;
+use App\Models\Location;
 use App\Models\OwnerType;
 use App\Models\RecordsOwner;
 use App\Models\RecordType;
+use App\Models\Station;
 use Livewire\Livewire;
 
 test('creates a record from the modal', function () {
@@ -110,6 +112,192 @@ test('edits a record', function () {
         ->recordType->name->toBe('Land Registry');
 });
 
+test('records a location and station with the owner', function () {
+    $recordType = RecordType::factory()->create();
+    $arb = OwnerType::factory()->create(['name' => 'ARB']);
+    $location = Location::factory()->create(['name' => 'Barangay San Isidro']);
+    $station = Station::factory()->create(['name' => 'DAR Station I']);
+
+    Livewire::test('admin::records.index')
+        ->call('startCreate')
+        ->set('owner_name', 'Ada Lovelace')
+        ->set('location_id', (string) $location->id)
+        ->set('station_id', (string) $station->id)
+        ->set('owner_type_id', (string) $arb->id)
+        ->set('record_type_id', $recordType->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(RecordsOwner::query()->latest('id')->first())
+        ->owner_name->toBe('Ada Lovelace')
+        ->location->name->toBe('Barangay San Isidro')
+        ->station->name->toBe('DAR Station I');
+});
+
+test('rejects a location or station that does not exist', function () {
+    $recordType = RecordType::factory()->create();
+    $arb = OwnerType::factory()->create(['name' => 'ARB']);
+
+    Livewire::test('admin::records.index')
+        ->call('startCreate')
+        ->set('owner_name', 'Ada Lovelace')
+        ->set('location_id', '9999')
+        ->set('station_id', '9999')
+        ->set('owner_type_id', (string) $arb->id)
+        ->set('record_type_id', $recordType->id)
+        ->call('save')
+        ->assertHasErrors(['location_id', 'station_id']);
+
+    expect(RecordsOwner::query()->count())->toBe(0);
+});
+
+test('a record without a location or station stores nulls', function () {
+    $recordType = RecordType::factory()->create();
+    $arb = OwnerType::factory()->create(['name' => 'ARB']);
+
+    Livewire::test('admin::records.index')
+        ->call('startCreate')
+        ->set('owner_name', 'Ada Lovelace')
+        ->set('location_id', '')
+        ->set('station_id', '')
+        ->set('owner_type_id', (string) $arb->id)
+        ->set('record_type_id', $recordType->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(RecordsOwner::query()->latest('id')->first())
+        ->location_id->toBeNull()
+        ->station_id->toBeNull();
+});
+
+test('loading a record fills in its location and station', function () {
+    $location = Location::factory()->create();
+    $station = Station::factory()->create();
+
+    $record = RecordsOwner::factory()->create([
+        'location_id' => $location->id,
+        'station_id' => $station->id,
+    ]);
+
+    Livewire::test('admin::records.index')
+        ->call('startEdit', $record->id)
+        ->assertSet('location_id', (string) $location->id)
+        ->assertSet('station_id', (string) $station->id);
+});
+
+test('an edit can move a record to a new location and station', function () {
+    $record = RecordsOwner::factory()->create([
+        'location_id' => Location::factory()->create()->id,
+        'station_id' => Station::factory()->create()->id,
+    ]);
+
+    $newLocation = Location::factory()->create(['name' => 'Barangay Poblacion']);
+    $newStation = Station::factory()->create(['name' => 'DAR Station II']);
+
+    Livewire::test('admin::records.index')
+        ->call('startEdit', $record->id)
+        ->set('location_id', (string) $newLocation->id)
+        ->set('station_id', (string) $newStation->id)
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($record->fresh())
+        ->location->name->toBe('Barangay Poblacion')
+        ->station->name->toBe('DAR Station II');
+});
+
+test('the records table shows each record location and station', function () {
+    RecordsOwner::factory()->create([
+        'owner_name' => 'Ada Lovelace',
+        'location_id' => Location::factory()->create(['name' => 'Barangay San Isidro'])->id,
+        'station_id' => Station::factory()->create(['name' => 'DAR Station I'])->id,
+    ]);
+
+    Livewire::test('admin::records.index')
+        ->assertSee('Location')
+        ->assertSee('Station')
+        ->assertSee('Barangay San Isidro')
+        ->assertSee('DAR Station I');
+});
+
+test('the location and station fields are searchable dropdowns', function () {
+    Location::factory()->create(['name' => 'Barangay San Isidro']);
+    Station::factory()->create(['name' => 'DAR Station I']);
+
+    Livewire::test('admin::records.index')
+        ->assertSeeHtml('id="location_id"')
+        ->assertSeeHtml('id="location_id-listbox"')
+        ->assertSeeHtml('id="station_id"')
+        ->assertSeeHtml('id="station_id-listbox"')
+        ->assertSee('Search locations…')
+        ->assertSee('Search stations…')
+        ->assertSee('No location')
+        ->assertSee('No station');
+});
+
+test('the record page location and station fields are searchable dropdowns', function () {
+    Location::factory()->create(['name' => 'Barangay San Isidro']);
+    Station::factory()->create(['name' => 'DAR Station I']);
+
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->assertSeeHtml('id="location_id-listbox"')
+        ->assertSeeHtml('id="station_id-listbox"')
+        ->assertSee('Search locations…')
+        ->assertSee('Search stations…');
+});
+
+test('the owner type and record type fields are searchable dropdowns', function () {
+    OwnerType::factory()->create(['name' => 'ARB']);
+    RecordType::factory()->create(['name' => 'Case File']);
+
+    Livewire::test('admin::records.index')
+        ->assertSeeHtml('id="owner_type_id-listbox"')
+        ->assertSeeHtml('id="record_type_id-listbox"')
+        ->assertSee('Search owner types…')
+        ->assertSee('Search record types…')
+        // The list filter is the same searchable control.
+        ->assertSeeHtml('id="recordType"')
+        ->assertSeeHtml('id="recordType-listbox"')
+        ->assertSee('All record types');
+});
+
+test('the record page owner type and record type fields are searchable dropdowns', function () {
+    OwnerType::factory()->create(['name' => 'ARB']);
+    RecordType::factory()->create(['name' => 'Case File']);
+
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->assertSeeHtml('id="owner_type_id-listbox"')
+        ->assertSeeHtml('id="record_type_id-listbox"')
+        ->assertSee('Search owner types…')
+        ->assertSee('Search record types…');
+});
+
+test('filters the list by record type', function () {
+    $ownerType = OwnerType::factory()->create();
+    $caseFile = RecordType::factory()->create(['name' => 'Case File']);
+    $profile = RecordType::factory()->create(['name' => 'Profile']);
+
+    RecordsOwner::factory()->create([
+        'owner_name' => 'Matching Owner',
+        'owner_type_id' => $ownerType->id,
+        'record_type_id' => $caseFile->id,
+    ]);
+    RecordsOwner::factory()->create([
+        'owner_name' => 'Other Owner',
+        'owner_type_id' => $ownerType->id,
+        'record_type_id' => $profile->id,
+    ]);
+
+    Livewire::test('admin::records.index')
+        ->set('recordType', (string) $caseFile->id)
+        ->assertSee('Matching Owner')
+        ->assertDontSee('Other Owner');
+});
+
 test('deletes a record and its files', function () {
     $record = RecordsOwner::factory()->create();
     File::factory()->for($record)->count(2)->create();
@@ -136,6 +324,27 @@ test('shows a record with its files', function () {
         ->assertSee('Deed of transfer.pdf');
 });
 
+test('the record page gives each modal its own dialog ref', function () {
+    $record = RecordsOwner::factory()->create();
+
+    $html = Livewire::test('admin::records.show', ['record' => $record])->html();
+
+    preg_match_all('/<dialog\b(?:[^>"]|"[^"]*")*>/', $html, $matches);
+
+    $modals = array_values(array_filter(
+        $matches[0],
+        fn (string $tag): bool => str_contains($tag, 'x-ref="dialog"'),
+    ));
+
+    expect($modals)->not->toBeEmpty();
+
+    foreach ($modals as $modal) {
+        // Without an Alpine root of its own, every modal on the page writes the
+        // same `dialog` ref into one scope, so they open and close each other.
+        expect($modal)->toContain('x-data');
+    }
+});
+
 test('adds a file to a record', function () {
     $record = RecordsOwner::factory()->create();
 
@@ -143,8 +352,7 @@ test('adds a file to a record', function () {
         ->call('startCreateFile')
         ->set('file_name', 'Deed of transfer.pdf')
         ->set('file_description', 'Signed transfer deed')
-        ->set('date_of_file_month', '4')
-        ->set('date_of_file_year', '1893')
+        ->set('date_of_file', '1893-04-12')
         ->call('saveFile')
         ->assertHasNoErrors()
         ->assertNoRedirect()
@@ -157,7 +365,7 @@ test('adds a file to a record', function () {
     expect($file)
         ->file_name->toBe('Deed of transfer.pdf')
         ->file_description->toBe('Signed transfer deed')
-        ->and($file->date_of_file?->format('Y-m-d'))->toBe('1893-04-01');
+        ->and($file->date_of_file?->format('Y-m-d'))->toBe('1893-04-12');
 });
 
 test('stores a blank file description and date as null', function () {
@@ -167,8 +375,7 @@ test('stores a blank file description and date as null', function () {
         ->call('startCreateFile')
         ->set('file_name', 'Untitled scan')
         ->set('file_description', '')
-        ->set('date_of_file_month', '')
-        ->set('date_of_file_year', '')
+        ->set('date_of_file', '')
         ->call('saveFile')
         ->assertHasNoErrors();
 
@@ -206,17 +413,16 @@ test('edits a file', function () {
         ->call('startEditFile', $file->id)
         ->assertSet('file_name', 'Old.pdf')
         ->set('file_name', 'New.pdf')
-        ->set('date_of_file_month', '4')
-        ->set('date_of_file_year', '1893')
+        ->set('date_of_file', '1893-04-12')
         ->call('saveFile')
         ->assertHasNoErrors();
 
     expect($file->fresh())
         ->file_name->toBe('New.pdf')
-        ->and($file->fresh()->date_of_file?->format('Y-m-d'))->toBe('1893-04-01');
+        ->and($file->fresh()->date_of_file?->format('Y-m-d'))->toBe('1893-04-12');
 });
 
-test('leaving the month alone keeps the day the file already had', function () {
+test('loading a file into the form fills in its whole date', function () {
     $record = RecordsOwner::factory()->create();
     $file = File::factory()->for($record)->create([
         'file_name' => 'Deed.pdf',
@@ -225,8 +431,18 @@ test('leaving the month alone keeps the day the file already had', function () {
 
     Livewire::test('admin::records.show', ['record' => $record])
         ->call('startEditFile', $file->id)
-        ->assertSet('date_of_file_month', '4')
-        ->assertSet('date_of_file_year', '1893')
+        ->assertSet('date_of_file', '1893-04-12');
+});
+
+test('an untouched date survives an unrelated edit', function () {
+    $record = RecordsOwner::factory()->create();
+    $file = File::factory()->for($record)->create([
+        'file_name' => 'Deed.pdf',
+        'date_of_file' => '1893-04-12',
+    ]);
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->call('startEditFile', $file->id)
         ->set('file_name', 'Amended deed.pdf')
         ->call('saveFile')
         ->assertHasNoErrors();
@@ -234,7 +450,7 @@ test('leaving the month alone keeps the day the file already had', function () {
     expect($file->fresh()->date_of_file?->format('Y-m-d'))->toBe('1893-04-12');
 });
 
-test('choosing a different month moves the file to the first of that month', function () {
+test('a new date replaces the old one', function () {
     $record = RecordsOwner::factory()->create();
     $file = File::factory()->for($record)->create([
         'file_name' => 'Deed.pdf',
@@ -243,75 +459,69 @@ test('choosing a different month moves the file to the first of that month', fun
 
     Livewire::test('admin::records.show', ['record' => $record])
         ->call('startEditFile', $file->id)
-        ->set('date_of_file_month', '5')
+        ->set('date_of_file', '1893-05-02')
         ->call('saveFile')
         ->assertHasNoErrors();
 
-    expect($file->fresh()->date_of_file?->format('Y-m-d'))->toBe('1893-05-01');
+    expect($file->fresh()->date_of_file?->format('Y-m-d'))->toBe('1893-05-02');
 });
 
-test('a month with no year is not a date', function () {
+test('rejects a date that is not a full date', function () {
     $record = RecordsOwner::factory()->create();
 
     Livewire::test('admin::records.show', ['record' => $record])
         ->call('startCreateFile')
         ->set('file_name', 'Half a date.pdf')
-        ->set('date_of_file_month', '4')
-        ->set('date_of_file_year', '')
+        ->set('date_of_file', '1893-04')
         ->call('saveFile')
-        ->assertHasErrors('date_of_file_year');
+        ->assertHasErrors('date_of_file');
 
     expect($record->files()->count())->toBe(0);
 });
 
-test('a year with no month is not a date', function () {
-    $record = RecordsOwner::factory()->create();
-
-    Livewire::test('admin::records.show', ['record' => $record])
-        ->call('startCreateFile')
-        ->set('file_name', 'Half a date.pdf')
-        ->set('date_of_file_month', '')
-        ->set('date_of_file_year', '1893')
-        ->call('saveFile')
-        ->assertHasErrors('date_of_file_month');
-
-    expect($record->files()->count())->toBe(0);
-});
-
-test('rejects a month that is not one of the twelve', function () {
+test('rejects a day that does not exist in the month', function () {
     $record = RecordsOwner::factory()->create();
 
     Livewire::test('admin::records.show', ['record' => $record])
         ->call('startCreateFile')
         ->set('file_name', 'Impossible.pdf')
-        ->set('date_of_file_month', '13')
-        ->set('date_of_file_year', '1893')
+        ->set('date_of_file', '1893-02-30')
         ->call('saveFile')
-        ->assertHasErrors('date_of_file_month');
+        ->assertHasErrors('date_of_file');
 });
 
-test('rejects a year from before the dropdowns start', function () {
+test('rejects a date in another format', function () {
+    $record = RecordsOwner::factory()->create();
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->call('startCreateFile')
+        ->set('file_name', 'Slashes.pdf')
+        ->set('date_of_file', '12/04/1893')
+        ->call('saveFile')
+        ->assertHasErrors('date_of_file');
+});
+
+test('rejects a date from before the picker starts', function () {
     $record = RecordsOwner::factory()->create();
 
     Livewire::test('admin::records.show', ['record' => $record])
         ->call('startCreateFile')
         ->set('file_name', 'Antique.pdf')
-        ->set('date_of_file_month', '1')
-        ->set('date_of_file_year', '1800')
+        ->set('date_of_file', '1800-01-01')
         ->call('saveFile')
-        ->assertHasErrors('date_of_file_year');
+        ->assertHasErrors('date_of_file');
 });
 
-test('rejects a year from beyond the picker', function () {
+test('rejects a date from beyond the picker', function () {
     $record = RecordsOwner::factory()->create();
+    $farFuture = ((int) now()->year + 50).'-01-01';
 
     Livewire::test('admin::records.show', ['record' => $record])
         ->call('startCreateFile')
         ->set('file_name', 'Far future.pdf')
-        ->set('date_of_file_month', '1')
-        ->set('date_of_file_year', (string) ((int) now()->year + 50))
+        ->set('date_of_file', $farFuture)
         ->call('saveFile')
-        ->assertHasErrors('date_of_file_year');
+        ->assertHasErrors('date_of_file');
 });
 
 test('the file form offers all twelve months', function () {
@@ -339,22 +549,21 @@ test('the picker reaches into the past and a little into the future', function (
     expect($range)->toBe([1850, $current + 5]);
 });
 
-test('the picker is bound to the same two properties the file form validates', function () {
+test('the picker is bound to the same property the file form validates', function () {
     $record = RecordsOwner::factory()->create();
 
     Livewire::test('admin::records.show', ['record' => $record])
-        ->assertSee('date_of_file_month')
-        ->assertSee('date_of_file_year')
-        ->assertSee('Choose a month and year');
+        ->assertSee('date_of_file')
+        ->assertSee('Choose a date');
 });
 
-test('the file date is shown to the month rather than to a day it never had', function () {
+test('the file date is shown to the day it carries', function () {
     $record = RecordsOwner::factory()->create();
     File::factory()->for($record)->create(['date_of_file' => '1893-04-12']);
 
     Livewire::test('admin::records.show', ['record' => $record])
-        ->assertSee('April 1893')
-        ->assertDontSee('Apr 12, 1893');
+        ->assertSee('Apr 12, 1893')
+        ->assertDontSee('April 1893');
 });
 
 test('cannot edit a file through the wrong record', function () {
@@ -368,13 +577,26 @@ test('cannot edit a file through the wrong record', function () {
 });
 
 test('edits a record from the record page', function () {
-    $record = RecordsOwner::factory()->create(['owner_name' => 'Old Name']);
+    $location = Location::factory()->create(['name' => 'Barangay San Isidro']);
+    $station = Station::factory()->create(['name' => 'DAR Station I']);
+
+    $record = RecordsOwner::factory()->create([
+        'owner_name' => 'Old Name',
+        'location_id' => $location->id,
+        'station_id' => $station->id,
+    ]);
     $arbo = OwnerType::factory()->create(['name' => 'ARBO']);
+    $newLocation = Location::factory()->create(['name' => 'Barangay Poblacion']);
+    $newStation = Station::factory()->create(['name' => 'DAR Station II']);
 
     Livewire::test('admin::records.show', ['record' => $record])
         ->call('startEditRecord')
         ->assertSet('owner_name', 'Old Name')
+        ->assertSet('location_id', (string) $location->id)
+        ->assertSet('station_id', (string) $station->id)
         ->set('owner_name', 'New Name')
+        ->set('location_id', (string) $newLocation->id)
+        ->set('station_id', (string) $newStation->id)
         ->set('owner_type_id', (string) $arbo->id)
         ->call('saveRecord')
         ->assertHasNoErrors()
@@ -383,7 +605,20 @@ test('edits a record from the record page', function () {
 
     expect($record->fresh())
         ->owner_name->toBe('New Name')
+        ->location->name->toBe('Barangay Poblacion')
+        ->station->name->toBe('DAR Station II')
         ->ownerType->name->toBe('ARBO');
+});
+
+test('the record page shows the location and station when it has them', function () {
+    $record = RecordsOwner::factory()->create([
+        'location_id' => Location::factory()->create(['name' => 'Barangay San Isidro'])->id,
+        'station_id' => Station::factory()->create(['name' => 'DAR Station I'])->id,
+    ]);
+
+    Livewire::test('admin::records.show', ['record' => $record])
+        ->assertSee('Barangay San Isidro')
+        ->assertSee('DAR Station I');
 });
 
 test('deletes the record from the record page', function () {

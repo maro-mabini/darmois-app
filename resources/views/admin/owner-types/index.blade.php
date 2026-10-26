@@ -156,7 +156,7 @@ new class extends Component {
         <button
             type="button"
             x-on:click="$wire.startCreate().then(() => $dispatch('modal-open', 'owner-type-form'))"
-            class="mt-4 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 sm:mt-0"
+            class="mt-4 inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-500 sm:mt-0"
         >
             New owner type
         </button>
@@ -186,7 +186,7 @@ new class extends Component {
                             <button
                                 type="button"
                                 x-on:click="$wire.startEdit({{ $ownerType->id }}).then(() => $dispatch('modal-open', 'owner-type-form'))"
-                                class="font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+                                class="font-medium text-brand-600 hover:underline dark:text-brand-300"
                             >
                                 Edit
                             </button>
@@ -242,7 +242,7 @@ new class extends Component {
             <button
                 type="submit"
                 form="owner-type-form-element"
-                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500"
+                class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-500"
             >
                 {{ $this->editing === null ? 'Create' : 'Save changes' }}
             </button>

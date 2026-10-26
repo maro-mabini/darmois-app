@@ -18,6 +18,14 @@ test('the layout renders the document shell', function () {
         ->assertSee('id="app-sidebar"', escape: false);
 });
 
+test('the brand is the DAR seal, in the sidebar and in the tab', function () {
+    $this->get(route('admin.records.index'))
+        ->assertOk()
+        ->assertSee('storage/dar_logo.png', escape: false)
+        ->assertSee('<link rel="icon"', escape: false)
+        ->assertSee('aria-label="DARMOIS home"', escape: false);
+});
+
 test('the layout renders the page content into the sidebar slot', function () {
     RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
 
@@ -61,6 +69,13 @@ test('the sidebar marks the current section for assistive technology', function 
     $this->get(route('admin.record-types.index'))
         ->assertOk()
         ->assertSee('aria-current="page"', escape: false);
+});
+
+test('the sidebar offers a light and dark theme switch', function () {
+    $this->get(route('admin.records.index'))
+        ->assertOk()
+        ->assertSee('toggleTheme()', escape: false)
+        ->assertSee('aria-label="Switch theme"', escape: false);
 });
 
 test('the collapse toggle floats on the sidebar edge and re-centres when collapsed', function () {
@@ -144,10 +159,16 @@ test('both collapse arrows are cloaked so the wrong one cannot flash first', fun
 test('the collapse toggle no longer spins a single glyph', function () {
     $content = $this->get(route('admin.records.index'))->assertOk()->getContent();
 
+    // Scoped to the toggle itself: other controls on the page (a dropdown's
+    // chevron, for instance) are free to use rotate-180 for their own states.
+    preg_match('/<button[^>]*aria-controls="app-sidebar".*?<\/button>/s', $content, $match);
+    $toggle = $match[0] ?? '';
+
     // The old double chevron was rotated 180deg when collapsed. Two distinct
     // arrows replace it, so the rotation must be gone or it would spin on top.
-    expect($content)->not->toContain('rotate-180')
-        ->and($content)->not->toContain('M11 19l-7-7 7-7');
+    expect($toggle)->not->toBeEmpty()
+        ->and($toggle)->not->toContain('rotate-180')
+        ->and($toggle)->not->toContain('M11 19l-7-7 7-7');
 });
 
 test('every page route renders the same layout', function (string $route) {

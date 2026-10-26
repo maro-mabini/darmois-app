@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\Location;
 use App\Models\OwnerType;
 use App\Models\RecordsOwner;
 use App\Models\RecordType;
+use App\Models\Station;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -40,6 +42,31 @@ test('belongs to a record type', function () {
     expect($owner->recordType)->toBeInstanceOf(RecordType::class)
         ->and($owner->recordType->id)->toBe($recordType->id)
         ->and($owner->fresh()->recordType->name)->toBe($recordType->name);
+});
+
+test('belongs to a location and a station', function () {
+    $location = Location::factory()->create();
+    $station = Station::factory()->create();
+
+    $owner = RecordsOwner::factory()->create([
+        'location_id' => $location->id,
+        'station_id' => $station->id,
+    ]);
+
+    expect($owner->location)->toBeInstanceOf(Location::class)
+        ->and($owner->location->name)->toBe($location->name)
+        ->and($owner->station)->toBeInstanceOf(Station::class)
+        ->and($owner->station->name)->toBe($station->name);
+});
+
+test('keeps a location and station optional', function () {
+    $owner = RecordsOwner::factory()->create([
+        'location_id' => null,
+        'station_id' => null,
+    ]);
+
+    expect($owner->location)->toBeNull()
+        ->and($owner->station)->toBeNull();
 });
 
 test('refuses an owner type id that does not exist', function () {

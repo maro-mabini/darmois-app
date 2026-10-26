@@ -83,13 +83,31 @@ test('dark mode body text is not gray-400, which is only 3.02:1 on gray-900', fu
     }
 });
 
-test('dark mode links are not indigo-400, which is only 3.21:1 on gray-900', function () {
+test('dark mode links are not brand-500, which is only 4.05:1 on gray-900', function () {
     foreach (themeViews() as $view) {
-        expect(file_get_contents($view))->not->toContain('dark:hover:text-indigo-400');
+        expect(file_get_contents($view))->not->toContain('dark:hover:text-brand-500');
     }
 
     foreach (themeViews() as $view) {
-        expect(file_get_contents($view))->not->toContain('dark:text-indigo-400');
+        expect(file_get_contents($view))->not->toContain('dark:text-brand-500');
+    }
+});
+
+test('the theme paints in the DAR green and gold rather than indigo', function () {
+    $css = file_get_contents(resource_path('css/app.css'));
+
+    expect($css)
+        ->toContain('--color-brand-600')
+        ->toContain('--color-gold-400');
+
+    $views = array_merge(
+        themeViews(),
+        glob(resource_path('views/layouts/*/*.blade.php')),
+        glob(resource_path('views/components/*.blade.php')),
+    );
+
+    foreach ($views as $view) {
+        expect(file_get_contents($view))->not->toContain('indigo');
     }
 });
 
@@ -97,6 +115,12 @@ test('dark mode placeholders are not gray-400, which is only 2.73:1 on the input
     foreach (themeViews() as $view) {
         expect(file_get_contents($view))->not->toContain('dark:placeholder:text-gray-400');
     }
+});
+
+test('an explicit light choice overrules a dark system preference', function () {
+    $css = file_get_contents(resource_path('css/app.css'));
+
+    expect($css)->toContain(':root:not(.light)');
 });
 
 test('no theme test file is missing its opening tag', function () {

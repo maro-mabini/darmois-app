@@ -16,15 +16,19 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property string $uuid
  * @property string $owner_name
+ * @property int|null $location_id
+ * @property int|null $station_id
  * @property int $owner_type_id
  * @property int $record_type_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read Location|null $location
+ * @property-read Station|null $station
  * @property-read OwnerType $ownerType
  * @property-read RecordType $recordType
  * @property-read Collection<int, File> $files
  */
-#[Fillable(['owner_name', 'owner_type_id', 'record_type_id'])]
+#[Fillable(['owner_name', 'location_id', 'station_id', 'owner_type_id', 'record_type_id'])]
 class RecordsOwner extends Model
 {
     /** @use HasFactory<RecordsOwnerFactory> */
@@ -38,6 +42,26 @@ class RecordsOwner extends Model
     public function uniqueIds(): array
     {
         return ['uuid'];
+    }
+
+    /**
+     * Get the location the record is filed at.
+     *
+     * @return BelongsTo<Location, $this>
+     */
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
+    }
+
+    /**
+     * Get the station that handles the record.
+     *
+     * @return BelongsTo<Station, $this>
+     */
+    public function station(): BelongsTo
+    {
+        return $this->belongsTo(Station::class);
     }
 
     /**

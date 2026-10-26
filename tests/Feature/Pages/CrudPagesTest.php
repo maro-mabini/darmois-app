@@ -1,9 +1,11 @@
 <?php
 
 use App\Models\File;
+use App\Models\Location;
 use App\Models\OwnerType;
 use App\Models\RecordsOwner;
 use App\Models\RecordType;
+use App\Models\Station;
 
 /*
  * These go through the real router rather than Livewire::test(). A Livewire page
@@ -77,6 +79,26 @@ test('the record type form modal renders', function () {
     $this->get(route('admin.record-types.index'))
         ->assertOk()
         ->assertSee('New record type');
+});
+
+test('the locations index renders', function () {
+    Location::factory()->create(['name' => 'Barangay San Isidro']);
+
+    $this->get(route('admin.locations.index'))
+        ->assertOk()
+        ->assertSee('Barangay San Isidro')
+        ->assertSee('<dialog', escape: false)
+        ->assertSee('New location');
+});
+
+test('the stations index renders', function () {
+    Station::factory()->create(['name' => 'DAR Station I']);
+
+    $this->get(route('admin.stations.index'))
+        ->assertOk()
+        ->assertSee('DAR Station I')
+        ->assertSee('<dialog', escape: false)
+        ->assertSee('New station');
 });
 
 test('the record type index carries the row names for the delete dialog', function () {

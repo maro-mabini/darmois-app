@@ -4,13 +4,14 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
 /*
- * Dark mode follows the operating system, and additionally honours a `.dark`
- * class on <html> so a theme toggle can override the OS preference later without
- * having to revisit any `dark:` utility in the views.
+ * Dark mode follows the operating system until the user picks a side. An
+ * explicit choice is recorded as a `dark` or `light` class on <html>; `.light`
+ * is what opts a page out of `prefers-color-scheme`, so a user who picked light
+ * is not overruled by a dark OS setting.
  */
 @custom-variant dark {
     @media (prefers-color-scheme: dark) {
-        &:where(.dark, .dark *) {
+        &:where(:root:not(.light), :root:not(.light) *) {
             @slot;
         }
     }
@@ -22,6 +23,36 @@
 
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /*
+     * DAR's own colors, taken from the agency seal: the deep green that carries
+     * the mark, and the gold it is paired with. Every primary control, link and
+     * focus ring is drawn from `brand`; `gold` is the accent that keeps the
+     * pairing visible (the mark in the sidebar, the rail on the current page).
+     */
+    --color-brand-50: #eef8f1;
+    --color-brand-100: #d6eedf;
+    --color-brand-200: #b0ddc1;
+    --color-brand-300: #7fc39c;
+    --color-brand-400: #4aa376;
+    --color-brand-500: #2b865a;
+    --color-brand-600: #1b6c47;
+    --color-brand-700: #16563a;
+    --color-brand-800: #12452f;
+    --color-brand-900: #0f3827;
+    --color-brand-950: #071f16;
+
+    --color-gold-50: #fffbeb;
+    --color-gold-100: #fef3c7;
+    --color-gold-200: #fde68a;
+    --color-gold-300: #fcd34d;
+    --color-gold-400: #f5c518;
+    --color-gold-500: #d9a800;
+    --color-gold-600: #b08200;
+    --color-gold-700: #8c6600;
+    --color-gold-800: #744f00;
+    --color-gold-900: #603f00;
+    --color-gold-950: #362200;
 }
 
 @layer base {

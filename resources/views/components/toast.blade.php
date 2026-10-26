@@ -113,7 +113,7 @@
             <button
                 type="button"
                 x-on:click="dismiss(item.id)"
-                class="-mt-1 -mr-1 shrink-0 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                class="-mt-1 -mr-1 shrink-0 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
                 <span class="sr-only">Dismiss notification</span>
                 <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

@@ -1,10 +1,11 @@
 <?php
 
 use App\Models\File;
+use App\Models\Location;
 use App\Models\OwnerType;
 use App\Models\RecordType;
 use App\Models\RecordsOwner;
-use Illuminate\Support\Carbon;
+use App\Models\Station;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -31,6 +32,10 @@ new class extends Component {
 
     public string $owner_name = '';
 
+    public string $location_id = '';
+
+    public string $station_id = '';
+
     public string $owner_type_id = '';
 
     public string $record_type_id = '';
@@ -45,27 +50,18 @@ new class extends Component {
     public string $file_description = '';
 
     /**
-     * The month the file was created in, 1-12, or an empty string for unset.
+     * The date the file was created, as Y-m-d, or an empty string for unset.
      */
-    public string $date_of_file_month = '';
-
-    /**
-     * The year the file was created in, or an empty string for unset.
-     */
-    public string $date_of_file_year = '';
-
-    /**
-     * The date the file being edited already had, kept so re-saving an untouched
-     * month does not quietly move the file to the first of the month.
-     */
-    public string $date_of_file_original = '';
+    public string $date_of_file = '';
 
     /**
      * Load the record.
      */
     public function mount(RecordsOwner $record): void
     {
-        $this->record = $record;
+        // The page reads all four relations in its header and form; loading
+        // them together keeps a record page to one query per relation.
+        $this->record = $record->loadMissing(['location', 'station', 'ownerType', 'recordType']);
     }
 
     /**
@@ -102,6 +98,34 @@ new class extends Component {
     public function recordTypeOptions(): array
     {
         return RecordType::query()
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    /**
+     * The locations offered by the form, keyed by their id.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function locationOptions(): array
+    {
+        return Location::query()
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    /**
+     * The stations offered by the form, keyed by their id.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function stationOptions(): array
+    {
+        return Station::query()
             ->orderBy('name')
             ->pluck('name', 'id')
             ->all();
@@ -160,6 +184,8 @@ new class extends Component {
     public function startEditRecord(): void
     {
         $this->owner_name = $this->record->owner_name;
+        $this->location_id = (string) $this->record->location_id;
+        $this->station_id = (string) $this->record->station_id;
         $this->owner_type_id = (string) $this->record->owner_type_id;
         $this->record_type_id = (string) $this->record->record_type_id;
         $this->editingRecord = true;
@@ -174,6 +200,12 @@ new class extends Component {
         try {
             $validated = $this->validate([
                 'owner_name' => ['required', 'string', 'max:255'],
+                'location_id' => $this->location_id === ''
+                    ? ['nullable']
+                    : ['integer', Rule::exists('locations', 'id')],
+                'station_id' => $this->station_id === ''
+                    ? ['nullable']
+                    : ['integer', Rule::exists('stations', 'id')],
                 'owner_type_id' => ['required', Rule::exists('owner_types', 'id')],
                 'record_type_id' => ['required', Rule::exists('record_types', 'id')],
             ]);
@@ -183,7 +215,13 @@ new class extends Component {
             throw $exception;
         }
 
-        $this->record->update($validated);
+        $this->record->update([
+            'owner_name' => $validated['owner_name'],
+            'location_id' => $this->location_id !== '' ? (int) $this->location_id : null,
+            'station_id' => $this->station_id !== '' ? (int) $this->station_id : null,
+            'owner_type_id' => $validated['owner_type_id'],
+            'record_type_id' => $validated['record_type_id'],
+        ]);
 
         $this->editingRecord = false;
         $this->resetValidation();
@@ -200,9 +238,7 @@ new class extends Component {
         $this->editingFile = null;
         $this->file_name = '';
         $this->file_description = '';
-        $this->date_of_file_month = '';
-        $this->date_of_file_year = '';
-        $this->date_of_file_original = '';
+        $this->date_of_file = '';
         $this->resetValidation();
     }
 
@@ -219,12 +255,9 @@ new class extends Component {
         $this->editingFile = $model->id;
         $this->file_name = $model->file_name;
         $this->file_description = (string) $model->file_description;
-        // format('n') and 'Y' rather than a split, so no timezone or padding
-        // assumption creeps in. The original is kept so an unchanged month
-        // survives the round trip intact.
-        $this->date_of_file_month = $model->date_of_file?->format('n') ?? '';
-        $this->date_of_file_year = $model->date_of_file?->format('Y') ?? '';
-        $this->date_of_file_original = $model->date_of_file?->format('Y-m-d') ?? '';
+        // format('Y-m-d') rather than a cast, so the value arrives as the plain
+        // string the picker and the validation rule both expect.
+        $this->date_of_file = $model->date_of_file?->format('Y-m-d') ?? '';
         $this->resetValidation();
     }
 
@@ -243,10 +276,12 @@ new class extends Component {
 
         // A blank optional field is stored as null, not as an empty string, so
         // that "has a description" stays a single question to ask of the column.
+        $dateOfFile = $validated['date_of_file'] ?? null;
+
         $attributes = [
             'file_name' => $validated['file_name'],
             'file_description' => $validated['file_description'] !== '' ? $validated['file_description'] : null,
-            'date_of_file' => $this->composeFileDate(),
+            'date_of_file' => $dateOfFile !== '' ? $dateOfFile : null,
         ];
 
         $editing = $this->editingFile !== null;
@@ -260,42 +295,11 @@ new class extends Component {
         $this->editingFile = null;
         $this->file_name = '';
         $this->file_description = '';
-        $this->date_of_file_month = '';
-        $this->date_of_file_year = '';
-        $this->date_of_file_original = '';
+        $this->date_of_file = '';
         $this->resetValidation();
 
         $this->dispatch('modal-saved', 'file-form');
         $this->dispatch('toast', message: $editing ? 'File updated.' : 'File added.');
-    }
-
-    /**
-     * Join the two dropdowns into a date, or null when neither is set.
-     *
-     * The dropdowns only carry a month and a year, so the day is implied. Where
-     * the file already had a date in that same month, the original day is kept
-     * rather than replaced with 01: editing a file's name should not silently
-     * move it to a different day of the month.
-     */
-    private function composeFileDate(): ?string
-    {
-        if ($this->date_of_file_month === '' || $this->date_of_file_year === '') {
-            return null;
-        }
-
-        $month = sprintf('%02d', (int) $this->date_of_file_month);
-        $year = (int) $this->date_of_file_year;
-
-        // Only carry the original day over when it belongs to the chosen month.
-        if ($this->date_of_file_original !== '') {
-            $original = Carbon::parse($this->date_of_file_original);
-
-            if ($original->format('Y') === (string) $year && $original->format('n') === (string) (int) $this->date_of_file_month) {
-                return $original->format('Y-m-d');
-            }
-        }
-
-        return sprintf('%04d-%02d-01', $year, (int) $this->date_of_file_month);
     }
 
     /**
@@ -348,15 +352,13 @@ new class extends Component {
         return [
             'file_name' => ['required', 'string', 'max:255'],
             'file_description' => ['nullable', 'string', 'max:1000'],
-            // Each half is optional, but neither may be filled in alone: a month
-            // with no year is not a date, and a bare year is not one either.
-            'date_of_file_month' => ['nullable', 'integer', 'between:1,12', 'required_with:date_of_file_year'],
-            'date_of_file_year' => [
+            // One value, not a month and a year that could disagree: the picker
+            // always hands over the whole date, so a partial one cannot arrive.
+            'date_of_file' => [
                 'nullable',
-                'integer',
-                "min:".self::EARLIEST_YEAR,
-                'max:'.($current + self::FUTURE_YEARS),
-                'required_with:date_of_file_month',
+                'date_format:Y-m-d',
+                'after_or_equal:'.self::EARLIEST_YEAR.'-01-01',
+                'before_or_equal:'.($current + self::FUTURE_YEARS).'-12-31',
             ],
         ];
     }
@@ -368,7 +370,7 @@ new class extends Component {
         <a
             href="{{ route('admin.records.index') }}"
             wire:navigate
-            class="font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+            class="font-medium text-brand-600 hover:underline dark:text-brand-300"
         >
             &larr; All records
         </a>
@@ -384,6 +386,13 @@ new class extends Component {
                 {{ $this->record->recordType->name }} &middot;
                 added {{ $this->record->created_at->toFormattedDateString() }}
             </p>
+
+            @if ($this->record->location || $this->record->station)
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-300">
+                    Location: {{ $this->record->location?->name ?? '—' }} &middot;
+                    Station: {{ $this->record->station?->name ?? '—' }}
+                </p>
+            @endif
         </div>
 
         <div class="mt-4 flex gap-3 sm:mt-0">
@@ -407,7 +416,7 @@ new class extends Component {
             <button
                 type="button"
                 x-on:click="$wire.startCreateFile().then(() => $dispatch('modal-open', 'file-form'))"
-                class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500"
+                class="inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-500"
             >
                 Add file
             </button>
@@ -436,13 +445,13 @@ new class extends Component {
                             {{ $file->file_description ?: '—' }}
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
-                            {{ $file->date_of_file?->format('F Y') ?? '—' }}
+                            {{ $file->date_of_file?->toFormattedDateString() ?? '—' }}
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">
                             <button
                                 type="button"
                                 x-on:click="$wire.startEditFile({{ $file->id }}).then(() => $dispatch('modal-open', 'file-form'))"
-                                class="font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+                                class="font-medium text-brand-600 hover:underline dark:text-brand-300"
                             >
                                 Edit
                             </button>
@@ -478,19 +487,41 @@ new class extends Component {
                 <x-form.input name="owner_name" autocomplete="off" />
             </x-form.field>
 
+            <div class="grid gap-5 sm:grid-cols-2">
+                <x-form.field label="Location" name="location_id">
+                    <x-form.combobox
+                        name="location_id"
+                        :options="$this->locationOptions"
+                        placeholder="No location"
+                        search-placeholder="Search locations…"
+                    />
+                </x-form.field>
+
+                <x-form.field label="Station" name="station_id">
+                    <x-form.combobox
+                        name="station_id"
+                        :options="$this->stationOptions"
+                        placeholder="No station"
+                        search-placeholder="Search stations…"
+                    />
+                </x-form.field>
+            </div>
+
             <x-form.field label="Owner type" name="owner_type_id" required>
-                <x-form.select
+                <x-form.combobox
                     name="owner_type_id"
                     :options="$this->ownerTypeOptions"
                     placeholder="Select an owner type"
+                    search-placeholder="Search owner types…"
                 />
             </x-form.field>
 
             <x-form.field label="Record type" name="record_type_id" required>
-                <x-form.select
+                <x-form.combobox
                     name="record_type_id"
                     :options="$this->recordTypeOptions"
                     placeholder="Select a record type"
+                    search-placeholder="Search record types…"
                 />
             </x-form.field>
         </form>
@@ -507,7 +538,7 @@ new class extends Component {
             <button
                 type="submit"
                 form="record-form-element"
-                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500"
+                class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-500"
             >
                 Save changes
             </button>
@@ -549,7 +580,7 @@ new class extends Component {
             <button
                 type="submit"
                 form="file-form-element"
-                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500"
+                class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-500"
             >
                 {{ $this->editingFile === null ? 'Add file' : 'Save changes' }}
             </button>

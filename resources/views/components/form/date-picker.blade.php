@@ -6,71 +6,85 @@
     'label' => null,
     'required' => false,
     'hint' => null,
-    'placeholder' => 'Choose a month and year',
+    'placeholder' => 'Choose a date',
 ])
 
 @php
-    /*
-     * Two Livewire properties rather than one combined value. The picker always
-     * sets them together, but the server still has to treat each half on its
-     * own: a month with no year is not a date, and it is the server that says so.
-     */
-    $yearName = "{$name}_year";
-    $monthName = "{$name}_month";
-
     $now = now();
 @endphp
 
 {{--
-    A month and a year picked inside one panel, with no day.
+    A day picked inside a month of a year.
+
+    Three views live in one panel: the days of a month, the twelve months, and a
+    decade of years. The header is the way between them -- the month label opens
+    the months, the year label opens the years -- so reaching 1893 is three
+    clicks rather than ninety arrow presses.
 
     The panel expands in place rather than floating over the form: this field
     lives at the bottom of a modal, and a floating panel would be clipped by the
     dialog's scrolling body. Expanding keeps it inside the dialog, reachable by
     keyboard, and readable on a phone.
 
-    The browsing position -- which month of which year is on screen -- is
-    Alpine's, because it is a view concern and no request is made for it. The
-    selection is not: it is read back from the Livewire properties with an
-    x-effect, so opening the form for a different file shows that file's month
-    rather than whatever the last one browsed to.
+    The browsing position -- which day of which month of which year is on screen --
+    is Alpine's, because it is a view concern and no request is made for it. The
+    selection is not: it is read back from the Livewire property with an x-effect,
+    so opening the form for a different file shows that file's date rather than
+    whatever the last one browsed to.
 --}}
 <x-form.field
     :label="$label ?? 'Date'"
-    :name="$monthName"
+    :name="$name"
     :required="$required"
-    :hint="$hint ?? 'Only the month and year are recorded.'"
-    :error-keys="[$yearName]"
+    :hint="$hint"
 >
     <div
         x-data="{
             months: @js($months),
+            weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
             minYear: {{ $minYear }},
             maxYear: {{ $maxYear }},
+            thisDay: {{ (int) $now->day }},
             thisMonth: {{ (int) $now->month }},
             thisYear: {{ (int) $now->year }},
-            monthName: @js($monthName),
-            yearName: @js($yearName),
+            name: @js($name),
 
             open: false,
-            view: 'months',
+            view: 'days',
             browseMonth: {{ (int) $now->month }},
             browseYear: {{ (int) $now->year }},
+            selected: '',
             display: '',
 
             /*
-             * Mirror the server's pair into the browsed position. Run from an
-             * x-effect, so it also fires when a file is loaded into the form
-             * and the properties change under the panel.
+             * Mirror the server's value into the browsed position. Run from an
+             * x-effect, so it also fires when a file is loaded into the form and
+             * the property changes under the panel.
              */
-            adopt(month, year) {
-                this.display = this.label(month, year);
-                this.browseMonth = Number(month) || this.thisMonth;
-                this.browseYear = this.clampYear(Number(year) || this.thisYear);
+            adopt(value) {
+                this.selected = value || '';
+
+                if (! this.selected) {
+                    this.display = '';
+
+                    return;
+                }
+
+                const [ year, month, day ] = String(this.selected).split('-').map(Number);
+
+                if (! year || ! month || ! day) {
+                    this.display = '';
+
+                    return;
+                }
+
+                this.display = this.label(month, day, year);
+                this.browseYear = this.clampYear(year);
+                this.browseMonth = month;
             },
 
-            label(month, year) {
-                return this.months[month] ? this.months[month] + ' ' + year : '';
+            label(month, day, year) {
+                return this.months[month] ? this.months[month] + ' ' + day + ', ' + year : '';
             },
 
             monthLabel() {
@@ -87,6 +101,18 @@
                 return years.length === 1
                     ? String(years[0])
                     : years[0] + '–' + years[years.length - 1];
+            },
+
+            headerLabel() {
+                if (this.view === 'days') {
+                    return this.monthLabel();
+                }
+
+                if (this.view === 'months') {
+                    return String(this.browseYear);
+                }
+
+                return this.decadeLabel();
             },
 
             clampYear(year) {
@@ -110,6 +136,45 @@
             },
 
             /*
+             * The calendar is built from the browsed year and month rather than
+             * from a Date parsed out of the stored string: a Y-m-d string is read
+             * as UTC by Date, which puts the day off by one behind UTC. Arithmetic
+             * on the components keeps the grid on the date the server holds.
+             */
+            daysInMonth() {
+                return new Date(this.browseYear, this.browseMonth, 0).getDate();
+            },
+
+            firstWeekday() {
+                return new Date(this.browseYear, this.browseMonth - 1, 1).getDay();
+            },
+
+            days() {
+                return Array.from({ length: this.daysInMonth() }, (value, offset) => offset + 1);
+            },
+
+            leading() {
+                return Array.from({ length: this.firstWeekday() }, (value, offset) => offset);
+            },
+
+            iso(day) {
+                const month = String(this.browseMonth).padStart(2, '0');
+                const date = String(day).padStart(2, '0');
+
+                return this.browseYear + '-' + month + '-' + date;
+            },
+
+            isSelected(day) {
+                return this.selected === this.iso(day);
+            },
+
+            isToday(day) {
+                return this.browseYear === this.thisYear
+                    && this.browseMonth === this.thisMonth
+                    && day === this.thisDay;
+            },
+
+            /*
              * Months are counted off a flat index rather than by adding days to a
              * date, so stepping from December to January crosses the year
              * without a Date, a timezone, or a short month getting in the way.
@@ -125,19 +190,51 @@
             },
 
             /*
-             * Stepping moves by whole decades, and the guard is written against
-             * the decade rather than the browsed year: the last decade is a
-             * partial one, and asking whether the browsed year plus ten is
-             * still in range would leave those last years unreachable.
+             * Arrow direction follows the view: a month at a time in the calendar,
+             * a year at a time among the months, a decade at a time among the years.
              */
-            stepDecade(delta) {
-                this.browseYear = this.clampYear(this.decadeStart(this.browseYear) + delta * 10);
+            step(delta) {
+                if (this.view === 'years') {
+                    this.browseYear = this.clampYear(this.decadeStart(this.browseYear) + delta * 10);
+
+                    return;
+                }
+
+                if (this.view === 'months') {
+                    this.browseYear = this.clampYear(this.browseYear + delta);
+
+                    return;
+                }
+
+                this.stepMonth(delta);
             },
 
-            canStepDecade(delta) {
-                const target = this.decadeStart(this.browseYear) + delta * 10;
+            /*
+             * The guard is written against what the step lands on, not against
+             * the browsed value: the last decade is a partial one, and asking
+             * whether the browsed year plus ten is still in range would leave
+             * those last years unreachable.
+             */
+            canStep(delta) {
+                if (this.view === 'years') {
+                    const target = this.decadeStart(this.browseYear) + delta * 10;
 
-                return target >= this.minYear && target <= this.maxYear;
+                    return target >= this.minYear && target <= this.maxYear;
+                }
+
+                if (this.view === 'months') {
+                    const target = this.browseYear + delta;
+
+                    return target >= this.minYear && target <= this.maxYear;
+                }
+
+                const index = (this.browseYear - this.minYear) * 12 + (this.browseMonth - 1) + delta;
+
+                return index >= 0 && index <= (this.maxYear - this.minYear) * 12 + 11;
+            },
+
+            stepView() {
+                this.view = this.view === 'days' ? 'months' : (this.view === 'months' ? 'years' : 'months');
             },
 
             pickYear(year) {
@@ -145,30 +242,38 @@
                 this.view = 'months';
             },
 
-            /*
-             * The year is written first: it is the half that is always present
-             * once a month has been chosen, so the pair never lands on the
-             * server as a month with nothing under it.
-             *
-             * $set is deferred. Nothing on the server needs to hear about a
-             * month until the form is submitted, and the x-effect reads the new
-             * value straight back out of the reactive copy.
-             */
             pickMonth(month) {
-                this.$wire.$set(this.yearName, String(this.browseYear), false);
-                this.$wire.$set(this.monthName, String(month), false);
+                this.browseMonth = month;
+                this.view = 'days';
+            },
+
+            /*
+             * $set is deferred. Nothing on the server needs to hear about a date
+             * until the form is submitted, and the x-effect reads the new value
+             * straight back out of the reactive copy.
+             */
+            pick(day) {
+                this.$wire.$set(this.name, this.iso(day), false);
                 this.open = false;
             },
 
             clear() {
-                this.$wire.$set(this.monthName, '', false);
-                this.$wire.$set(this.yearName, '', false);
+                this.$wire.$set(this.name, '', false);
                 this.open = false;
             },
 
             toggle() {
                 this.open = ! this.open;
-                this.view = 'months';
+                this.view = 'days';
+
+                /*
+                 * The field sits at the bottom of the modal's scrolling body, so
+                 * the panel opens mostly below the fold. Pull it back into view
+                 * without moving the page when it already fits.
+                 */
+                if (this.open) {
+                    this.$nextTick(() => this.$refs.panel.scrollIntoView({ block: 'nearest' }));
+                }
             },
 
             /*
@@ -187,17 +292,17 @@
                 this.open = false;
             },
         }"
-        x-effect="adopt($wire.{{ $monthName }}, $wire.{{ $yearName }})"
+        x-effect="adopt($wire.{{ $name }})"
         x-on:keydown.escape="onEscape($event)"
     >
         <button
             type="button"
-            id="{{ $monthName }}"
+            id="{{ $name }}"
             aria-haspopup="true"
-            aria-controls="{{ $monthName }}-picker"
+            aria-controls="{{ $name }}-picker"
             :aria-expanded="open"
             x-on:click="toggle()"
-            class="flex w-full items-center justify-between gap-2 rounded-lg border-0 bg-white px-3 py-2 text-left text-sm shadow-xs ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 focus:ring-inset dark:bg-white/5 dark:ring-gray-700 dark:focus:ring-indigo-500"
+            class="flex w-full items-center justify-between gap-2 rounded-lg border-0 bg-white px-3 py-2 text-left text-sm shadow-xs ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-brand-600 focus:ring-inset dark:bg-white/5 dark:ring-gray-700 dark:focus:ring-brand-500"
         >
             <span
                 x-text="display || @js($placeholder)"
@@ -217,7 +322,8 @@
         </button>
 
         <div
-            id="{{ $monthName }}-picker"
+            x-ref="panel"
+            id="{{ $name }}-picker"
             role="group"
             aria-label="{{ $label ?? 'Date' }} picker"
             x-show="open"
@@ -227,9 +333,9 @@
             <div class="flex items-center justify-between gap-1">
                 <button
                     type="button"
-                    x-on:click="view === 'months' ? stepMonth(-1) : stepDecade(-1)"
-                    :disabled="view === 'years' && ! canStepDecade(-1)"
-                    class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
+                    x-on:click="step(-1)"
+                    :disabled="! canStep(-1)"
+                    class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
                 >
                     <span class="sr-only">Previous</span>
                     <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -239,16 +345,16 @@
 
                 {{--
                     The one control that swaps what the panel below is showing:
-                    the twelve months, or the ten years. Both live in the same
-                    panel, so a year is picked and the months it holds are one
-                    click away.
+                    the days of the month, the twelve months, or the ten years.
+                    Each view opens the one above it, so a year is picked and the
+                    months it holds are one click away.
                 --}}
                 <button
                     type="button"
-                    x-on:click="view = view === 'months' ? 'years' : 'months'"
-                    class="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-semibold text-gray-900 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:text-white dark:hover:bg-white/5"
+                    x-on:click="stepView()"
+                    class="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-semibold text-gray-900 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-white dark:hover:bg-white/5"
                 >
-                    <span x-text="view === 'months' ? monthLabel() : decadeLabel()"></span>
+                    <span x-text="headerLabel()"></span>
 
                     <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
@@ -257,15 +363,51 @@
 
                 <button
                     type="button"
-                    x-on:click="view === 'months' ? stepMonth(1) : stepDecade(1)"
-                    :disabled="view === 'years' && ! canStepDecade(1)"
-                    class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
+                    x-on:click="step(1)"
+                    :disabled="! canStep(1)"
+                    class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
                 >
                     <span class="sr-only">Next</span>
                     <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                     </svg>
                 </button>
+            </div>
+
+            <div x-show="view === 'days'" class="mt-3">
+                <div class="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 dark:text-gray-300">
+                    <template x-for="weekday in weekdays" :key="weekday">
+                        <span x-text="weekday"></span>
+                    </template>
+                </div>
+
+                <div class="mt-1 grid grid-cols-7 gap-1">
+                    {{-- Empty cells so the first day of the month falls under its weekday. --}}
+                    <template x-for="blank in leading()" :key="'blank-' + blank">
+                        <span></span>
+                    </template>
+
+                    <template x-for="day in days()" :key="day">
+                        <button
+                            type="button"
+                            x-on:click="pick(day)"
+                            x-text="day"
+                            :aria-current="isSelected(day) ? 'date' : null"
+                            :class="isSelected(day)
+                                ? 'bg-brand-600 text-white'
+                                : (isToday(day)
+                                    ? 'text-brand-600 ring-1 ring-brand-600 ring-inset dark:text-brand-300 dark:ring-brand-400'
+                                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10')"
+                            {{--
+                                A fixed height rather than aspect-square: the row
+                                holding the leading blanks has no other content,
+                                so an aspect-ratio height resolves after the row
+                                is already sized and that first row comes up short.
+                            --}}
+                            class="h-10 rounded-lg text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                        ></button>
+                    </template>
+                </div>
             </div>
 
             {{--
@@ -279,10 +421,10 @@
                         type="button"
                         x-on:click="pickMonth(Number(number))"
                         x-text="month"
-                        :class="Number($wire.{{ $monthName }}) === Number(number)
-                            ? 'bg-indigo-600 text-white'
+                        :class="Number($wire.{{ $name }}?.split('-')[1]) === Number(number)
+                            ? 'bg-brand-600 text-white'
                             : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10'"
-                        class="rounded-lg px-2 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                        class="rounded-lg px-2 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                     ></button>
                 </template>
             </div>
@@ -293,10 +435,10 @@
                         type="button"
                         x-on:click="pickYear(year)"
                         x-text="year"
-                        :class="Number($wire.{{ $yearName }}) === year
-                            ? 'bg-indigo-600 text-white'
+                        :class="Number($wire.{{ $name }}?.split('-')[0]) === year
+                            ? 'bg-brand-600 text-white'
                             : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10'"
-                        class="rounded-lg px-2 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                        class="rounded-lg px-2 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                     ></button>
                 </template>
             </div>
@@ -306,13 +448,13 @@
                     type="button"
                     x-on:click="clear()"
                     x-show="display"
-                    class="text-sm font-medium text-gray-600 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:text-gray-300 dark:hover:text-white"
+                    class="text-sm font-medium text-gray-600 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-gray-300 dark:hover:text-white"
                 >
                     Clear
                 </button>
 
                 <p x-show="! display" class="text-xs text-gray-500 dark:text-gray-300">
-                    Pick a month and a year.
+                    Pick a day, then a month and a year if you need to go back further.
                 </p>
             </div>
         </div>

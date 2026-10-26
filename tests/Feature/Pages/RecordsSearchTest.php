@@ -122,7 +122,9 @@ test('offers every record type in the dropdown', function () {
     searchFixture();
 
     Livewire::test('admin::records.index')
-        ->assertSee('<option value="">All record types</option>', escape: false)
+        ->assertSeeHtml('id="recordType"')
+        ->assertSeeHtml('id="recordType-listbox"')
+        ->assertSee('All record types')
         ->assertSee('Land Registry')
         ->assertSee('Lease Agreements');
 });
@@ -222,5 +224,7 @@ test('the search box is debounced so typing does not query per keystroke', funct
     $this->get(route('admin.records.index'))
         ->assertOk()
         ->assertSee('wire:model.live.debounce.300ms="search"', escape: false)
-        ->assertSee('wire:model.live="recordType"', escape: false);
+        // The record type filter is a combobox that entangles live, so picking
+        // a type re-queries immediately.
+        ->assertSee("value: \$wire.\$entangle('recordType', true)", escape: false);
 });

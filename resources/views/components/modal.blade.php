@@ -16,8 +16,15 @@
     a trigger and this component do not have to live in the same x-data scope:
 
         $dispatch('modal-open', 'owner-type-edit')
+
+    The empty x-data is load-bearing: x-ref registers against the closest Alpine
+    root, so without a scope of its own every modal on a page writes the same
+    `dialog` ref into one shared object, and `$refs.dialog` ends up pointing at
+    the last modal in the document. Two x-modals on one page (the record page
+    has a record form and a file form) would then open and close each other.
 --}}
 <dialog
+    x-data
     x-ref="dialog"
     x-on:modal-open.window="if ($event.detail === @js($id) && ! $refs.dialog.open) $refs.dialog.showModal()"
     x-on:modal-saved.window="if ($event.detail === @js($id)) $refs.dialog.close()"
@@ -41,7 +48,7 @@
         <button
             type="button"
             x-on:click="$refs.dialog.close()"
-            class="-mt-1 -mr-2 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
+            class="-mt-1 -mr-2 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
         >
             <span class="sr-only">Close</span>
             <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

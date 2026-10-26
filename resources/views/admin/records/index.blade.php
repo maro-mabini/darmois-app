@@ -1,10 +1,11 @@
 <?php
 
+use App\Models\Location;
 use App\Models\OwnerType;
 use App\Models\RecordType;
 use App\Models\RecordsOwner;
+use App\Models\Station;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -23,6 +24,17 @@ new class extends Component {
     public ?int $editing = null;
 
     public string $owner_name = '';
+
+    /**
+     * The location the record is filed at, as the id of a managed location.
+     * Optional: older records were filed before the list existed.
+     */
+    public string $location_id = '';
+
+    /**
+     * The DAR station that handles the record, as the id of a managed station.
+     */
+    public string $station_id = '';
 
     public string $owner_type_id = '';
 
@@ -67,6 +79,8 @@ new class extends Component {
     {
         $this->editing = null;
         $this->owner_name = '';
+        $this->location_id = '';
+        $this->station_id = '';
         $this->owner_type_id = '';
         $this->record_type_id = '';
         $this->resetValidation();
@@ -81,6 +95,8 @@ new class extends Component {
 
         $this->editing = $model->id;
         $this->owner_name = $model->owner_name;
+        $this->location_id = (string) $model->location_id;
+        $this->station_id = (string) $model->station_id;
         $this->owner_type_id = (string) $model->owner_type_id;
         $this->record_type_id = (string) $model->record_type_id;
         $this->resetValidation();
@@ -102,18 +118,30 @@ new class extends Component {
             throw $exception;
         }
 
+        // A blank optional field is stored as null, not as an empty string, so
+        // "has a location" stays a single question to ask of the column.
+        $attributes = [
+            'owner_name' => $validated['owner_name'],
+            'location_id' => $this->location_id !== '' ? (int) $this->location_id : null,
+            'station_id' => $this->station_id !== '' ? (int) $this->station_id : null,
+            'owner_type_id' => $validated['owner_type_id'],
+            'record_type_id' => $validated['record_type_id'],
+        ];
+
         if ($this->editing === null) {
-            RecordsOwner::create($validated);
+            RecordsOwner::create($attributes);
 
             $message = 'Record created.';
         } else {
-            RecordsOwner::query()->findOrFail($this->editing)->update($validated);
+            RecordsOwner::query()->findOrFail($this->editing)->update($attributes);
 
             $message = 'Record updated.';
         }
 
         $this->editing = null;
         $this->owner_name = '';
+        $this->location_id = '';
+        $this->station_id = '';
         $this->owner_type_id = '';
         $this->record_type_id = '';
         $this->resetValidation();
@@ -147,17 +175,6 @@ new class extends Component {
     }
 
     /**
-     * The record types offered by the filter dropdown.
-     *
-     * @return Collection<int, RecordType>
-     */
-    #[Computed]
-    public function recordTypes(): Collection
-    {
-        return RecordType::query()->orderBy('name')->get();
-    }
-
-    /**
      * The owner types offered by the form, keyed by their id.
      *
      * @return array<int, string>
@@ -186,12 +203,48 @@ new class extends Component {
     }
 
     /**
+     * The locations offered by the form, keyed by their id.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function locationOptions(): array
+    {
+        return Location::query()
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    /**
+     * The stations offered by the form, keyed by their id.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function stationOptions(): array
+    {
+        return Station::query()
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    /**
      * @return array<string, array<int, mixed>>
      */
     protected function rules(): array
     {
         return [
             'owner_name' => ['required', 'string', 'max:255'],
+            // The blank option means "not set". Anything else has to name a
+            // row that exists, so a stale id cannot be stored.
+            'location_id' => $this->location_id === ''
+                ? ['nullable']
+                : ['integer', Rule::exists('locations', 'id')],
+            'station_id' => $this->station_id === ''
+                ? ['nullable']
+                : ['integer', Rule::exists('stations', 'id')],
             'owner_type_id' => ['required', Rule::exists('owner_types', 'id')],
             'record_type_id' => ['required', Rule::exists('record_types', 'id')],
         ];
@@ -206,7 +259,7 @@ new class extends Component {
     public function records(): LengthAwarePaginator
     {
         return RecordsOwner::query()
-            ->with('recordType')
+            ->with(['recordType', 'ownerType', 'location', 'station'])
             ->withCount('files')
             ->when($this->searchTerm() !== '', function (Builder $query) {
                 $term = '%'.$this->likePattern($this->searchTerm()).'%';
@@ -293,7 +346,7 @@ new class extends Component {
             <button
                 type="button"
                 x-on:click="$wire.startCreate().then(() => $dispatch('modal-open', 'record-form'))"
-                class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500"
+                class="inline-flex items-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-500"
             >
                 New record
             </button>
@@ -316,30 +369,28 @@ new class extends Component {
                 wire:model.live.debounce.300ms="search"
                 placeholder="Search owner, type or record type"
                 autocomplete="off"
-                class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 shadow-xs placeholder-gray-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-hidden [&::-webkit-search-cancel-button]:appearance-none dark:border-gray-700 dark:bg-white/5 dark:text-white dark:placeholder-gray-300"
+                class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 shadow-xs placeholder-gray-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-hidden [&::-webkit-search-cancel-button]:appearance-none dark:border-gray-700 dark:bg-white/5 dark:text-white dark:placeholder-gray-300"
             />
         </div>
 
         <div class="flex items-center gap-3">
-            <label for="record-type-filter" class="sr-only">Filter by record type</label>
+            <label for="recordType" class="sr-only">Filter by record type</label>
 
-            <select
-                id="record-type-filter"
-                wire:model.live="recordType"
-                class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-8 pl-3 text-sm text-gray-900 shadow-xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-hidden sm:w-56 dark:border-gray-700 dark:bg-white/5 dark:text-white"
-            >
-                <option value="">All record types</option>
-
-                @foreach ($this->recordTypes as $recordTypeOption)
-                    <option value="{{ $recordTypeOption->id }}">{{ $recordTypeOption->name }}</option>
-                @endforeach
-            </select>
+            <div class="w-full sm:w-56">
+                <x-form.combobox
+                    name="recordType"
+                    :options="$this->recordTypeOptions"
+                    placeholder="All record types"
+                    search-placeholder="Search record types…"
+                    live
+                />
+            </div>
 
             @if ($this->isFiltered)
                 <button
                     type="button"
                     wire:click="clearFilters"
-                    class="shrink-0 text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+                    class="shrink-0 text-sm font-medium text-brand-600 hover:underline dark:text-brand-300"
                 >
                     Clear filters
                 </button>
@@ -352,6 +403,8 @@ new class extends Component {
             <thead class="bg-gray-50 dark:bg-gray-950">
                 <tr>
                     <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Owner</th>
+                    <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Location</th>
+                    <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Station</th>
                     <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Owner type</th>
                     <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Record type</th>
                     <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Files</th>
@@ -373,10 +426,16 @@ new class extends Component {
                             <a
                                 href="{{ route('admin.records.show', $record) }}"
                                 wire:navigate
-                                class="hover:text-indigo-600 hover:underline dark:hover:text-indigo-300"
+                                class="hover:text-brand-600 hover:underline dark:hover:text-brand-300"
                             >
                                 {{ $record->owner_name }}
                             </a>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
+                            {{ $record->location?->name ?? '—' }}
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
+                            {{ $record->station?->name ?? '—' }}
                         </td>
                         <td class="px-4 py-3">
                             <span class="inline-flex rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
@@ -398,7 +457,7 @@ new class extends Component {
                             <button
                                 type="button"
                                 x-on:click="$wire.startEdit({{ $record->id }}).then(() => $dispatch('modal-open', 'record-form'))"
-                                class="font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+                                class="font-medium text-brand-600 hover:underline dark:text-brand-300"
                             >
                                 Edit
                             </button>
@@ -415,13 +474,13 @@ new class extends Component {
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-4 py-16 text-center text-gray-500 dark:text-gray-300">
+                        <td colspan="8" class="px-4 py-16 text-center text-gray-500 dark:text-gray-300">
                             @if ($this->isFiltered)
                                 No records match your search.
                                 <button
                                     type="button"
                                     wire:click="clearFilters"
-                                    class="font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+                                    class="font-medium text-brand-600 hover:underline dark:text-brand-300"
                                 >
                                     Clear filters
                                 </button>
@@ -451,19 +510,41 @@ new class extends Component {
                 <x-form.input name="owner_name" autocomplete="off" placeholder="e.g. Marie Curie" />
             </x-form.field>
 
+            <div class="grid gap-5 sm:grid-cols-2">
+                <x-form.field label="Location" name="location_id">
+                    <x-form.combobox
+                        name="location_id"
+                        :options="$this->locationOptions"
+                        placeholder="No location"
+                        search-placeholder="Search locations…"
+                    />
+                </x-form.field>
+
+                <x-form.field label="Station" name="station_id">
+                    <x-form.combobox
+                        name="station_id"
+                        :options="$this->stationOptions"
+                        placeholder="No station"
+                        search-placeholder="Search stations…"
+                    />
+                </x-form.field>
+            </div>
+
             <x-form.field label="Owner type" name="owner_type_id" required>
-                <x-form.select
+                <x-form.combobox
                     name="owner_type_id"
                     :options="$this->ownerTypeOptions"
                     placeholder="Select an owner type"
+                    search-placeholder="Search owner types…"
                 />
             </x-form.field>
 
             <x-form.field label="Record type" name="record_type_id" required>
-                <x-form.select
+                <x-form.combobox
                     name="record_type_id"
                     :options="$this->recordTypeOptions"
                     placeholder="Select a record type"
+                    search-placeholder="Search record types…"
                 />
             </x-form.field>
         </form>
@@ -480,7 +561,7 @@ new class extends Component {
             <button
                 type="submit"
                 form="record-form-element"
-                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500"
+                class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-500"
             >
                 {{ $this->editing === null ? 'Create record' : 'Save changes' }}
             </button>
