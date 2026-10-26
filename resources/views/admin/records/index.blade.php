@@ -8,6 +8,7 @@ use App\Models\Station;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -456,6 +457,81 @@ new class extends Component {
     }
 
     /**
+     * Whether the given record matches the active search term on any of its
+     * own fields or any of its files' fields.
+     */
+    public function matchesSearch(RecordsOwner $record): bool
+    {
+        $term = $this->searchTerm();
+
+        if ($term === '') {
+            return false;
+        }
+
+        $pattern = '/'.preg_quote($term, '/').'/i';
+
+        if (preg_match($pattern, $record->owner_name)
+            || preg_match($pattern, $record->ownerType->name ?? '')
+            || preg_match($pattern, $record->recordType->name ?? '')) {
+            return true;
+        }
+
+        foreach ($record->files as $file) {
+            if (preg_match($pattern, $file->file_name)
+                || ($file->file_description && preg_match($pattern, $file->file_description))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Highlight occurrences of the active search term inside the given text.
+     */
+    public function highlight(?string $text): HtmlString
+    {
+        if ($text === null || $text === '') {
+            return new HtmlString('');
+        }
+
+        $term = $this->searchTerm();
+
+        if ($term === '') {
+            return new HtmlString(e($text));
+        }
+
+        $pattern = '/'.preg_quote($term, '/').'/i';
+
+        if (! preg_match_all($pattern, $text, $matches, PREG_OFFSET_CAPTURE)) {
+            return new HtmlString(e($text));
+        }
+
+        $result = '';
+        $lastOffset = 0;
+
+        foreach ($matches[0] as $match) {
+            $matchText = $match[0];
+            $matchOffset = (int) $match[1];
+            $matchLen = strlen($matchText);
+
+            if ($matchOffset > $lastOffset) {
+                $result .= e(substr($text, $lastOffset, $matchOffset - $lastOffset));
+            }
+
+            $result .= '<mark class="rounded-xs bg-amber-200 px-0.5 font-medium text-gray-900 dark:bg-amber-500/30 dark:text-amber-200">'.e($matchText).'</mark>';
+
+            $lastOffset = $matchOffset + $matchLen;
+        }
+
+        if ($lastOffset < strlen($text)) {
+            $result .= e(substr($text, $lastOffset));
+        }
+
+        return new HtmlString($result);
+    }
+
+    /**
      * The trimmed search term, or an empty string when the box holds only spaces.
      */
     private function searchTerm(): string
@@ -597,7 +673,7 @@ new class extends Component {
                 --}}
                 <tbody
                     wire:key="record-{{ $record->id }}"
-                    x-data="{ open: false }"
+                    x-data="{ open: {{ $this->matchesSearch($record) ? 'true' : 'false' }}"
                     class="divide-y divide-gray-200 dark:divide-gray-800"
                 >
                     <tr
@@ -631,7 +707,7 @@ new class extends Component {
                                 wire:navigate
                                 class="hover:text-brand-600 hover:underline dark:hover:text-brand-300"
                             >
-                                {{ $record->owner_name }}
+                                {!! $this->highlight($record->owner_name) !!}
                             </a>
                         </td>
                         <td class="px-3 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
@@ -642,12 +718,12 @@ new class extends Component {
                         </td>
                         <td class="px-3 py-3 whitespace-nowrap">
                             <span class="inline-flex rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                {{ $record->ownerType->name }}
+                                {!! $this->highlight($record->ownerType->name) !!}
                             </span>
                         </td>
                         <td class="px-3 py-3 whitespace-nowrap">
                             <span class="inline-flex rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                {{ $record->recordType->name }}
+                                {!! $this->highlight($record->recordType->name) !!}
                             </span>
                         </td>
                         <td class="px-3 py-3 tabular-nums text-gray-600 dark:text-gray-300">
@@ -723,7 +799,7 @@ new class extends Component {
                                         <li wire:key="record-{{ $record->id }}-file-{{ $file->id }}" class="py-2">
                                             <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                                                 <span class="font-medium text-gray-900 dark:text-white">
-                                                    {{ $file->file_name }}
+                                                    {!! $this->highlight($file->file_name) !!}
                                                 </span>
 
                                                 <span class="text-xs whitespace-nowrap tabular-nums text-gray-500 dark:text-gray-300">
@@ -733,7 +809,7 @@ new class extends Component {
 
                                             @if ($file->file_description)
                                                 <p class="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
-                                                    {{ $file->file_description }}
+                                                    {!! $this->highlight($file->file_description) !!}
                                                 </p>
                                             @endif
                                         </li>
