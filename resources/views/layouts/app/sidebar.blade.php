@@ -8,6 +8,7 @@
       collapsed - desktop rail vs full sidebar, persisted so a reload keeps it
       open      - the mobile drawer, deliberately not persisted
       theme     - 'light', 'dark', or 'system' until the user picks a side
+      palette   - 'dar' (the seal's green and gold) or 'iris', also persisted
 --}}
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
@@ -28,9 +29,11 @@
         collapsed: localStorage.getItem('darmois:sidebar-collapsed') === '1',
         open: false,
         theme: localStorage.getItem('darmois:theme') ?? 'system',
+        palette: localStorage.getItem('darmois:palette') ?? 'dar',
         dark: false,
         init() {
             this.applyTheme();
+            this.applyPalette();
 
             this.$watch('collapsed', (value) => {
                 localStorage.setItem('darmois:sidebar-collapsed', value ? '1' : '0');
@@ -63,6 +66,26 @@
             this.theme = this.dark ? 'light' : 'dark';
             localStorage.setItem('darmois:theme', this.theme);
             this.applyTheme();
+        },
+        /*
+         * The palette is a second, independent choice: a data attribute on
+         * <html> that re-points the `brand` and `gold` ramps in app.css. The
+         * default removes the attribute instead of writing a palette name on it,
+         * so a visitor who never picked one carries no palette at all.
+         */
+        applyPalette() {
+            const root = document.documentElement;
+
+            if (this.palette === 'dar') {
+                root.removeAttribute('data-palette');
+            } else {
+                root.dataset.palette = this.palette;
+            }
+        },
+        setPalette(palette) {
+            this.palette = palette;
+            localStorage.setItem('darmois:palette', palette);
+            this.applyPalette();
         },
     }"
     class="h-full bg-gray-50 font-sans text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100"
@@ -288,6 +311,73 @@
                     </a>
                 @endforeach
             </nav>
+
+            {{--
+                Palette switch, above the light/dark switch. Two fixed choices
+                rather than a cycle, so both are visible and the current one can
+                carry aria-pressed. The swatches are literal colours, not
+                `brand-*`: a preview drawn with the live palette would show two
+                identical dots.
+
+                Collapsed, the rail is 56px wide, so the pair stacks instead of
+                shrinking to unreadable dots.
+            --}}
+            <div class="border-t border-gray-200 p-3 dark:border-gray-800">
+                <p
+                    x-show="! collapsed"
+                    x-cloak
+                    class="mb-1.5 px-3 text-xs font-medium text-gray-500 dark:text-gray-300"
+                >
+                    Palette
+                </p>
+
+                <div
+                    class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-white/5"
+                    :class="collapsed ? 'flex-col' : ''"
+                    role="group"
+                    aria-label="Color palette"
+                >
+                    <button
+                        type="button"
+                        x-on:click="setPalette('dar')"
+                        :aria-pressed="palette === 'dar'"
+                        aria-label="DAR green and gold palette"
+                        title="DAR green and gold"
+                        :class="palette === 'dar'
+                            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                            : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                    >
+                        {{-- Literal colours, not `brand-*`: the swatch previews
+                             a palette that is not the one currently on. --}}
+                        <span class="flex gap-1" aria-hidden="true">
+                            <span class="size-3 rounded-full" style="background-color: #1b6c47"></span>
+                            <span class="size-3 rounded-full" style="background-color: #f5c518"></span>
+                        </span>
+
+                        <span x-show="! collapsed" x-cloak>DAR</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        x-on:click="setPalette('iris')"
+                        :aria-pressed="palette === 'iris'"
+                        aria-label="Iris indigo and violet palette"
+                        title="Iris indigo and violet"
+                        :class="palette === 'iris'
+                            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                            : 'text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-white/10'"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                    >
+                        <span class="flex gap-1" aria-hidden="true">
+                            <span class="size-3 rounded-full" style="background-color: #4f46e5"></span>
+                            <span class="size-3 rounded-full" style="background-color: #c084fc"></span>
+                        </span>
+
+                        <span x-show="! collapsed" x-cloak>Iris</span>
+                    </button>
+                </div>
+            </div>
 
             {{--
                 Theme switch, pinned to the foot of the sidebar. It reads as a

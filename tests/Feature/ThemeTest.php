@@ -93,12 +93,12 @@ test('dark mode links are not brand-500, which is only 4.05:1 on gray-900', func
     }
 });
 
-test('the theme paints in the DAR green and gold rather than indigo', function () {
+test('the default palette is the DAR green and gold', function () {
     $css = file_get_contents(resource_path('css/app.css'));
 
     expect($css)
-        ->toContain('--color-brand-600')
-        ->toContain('--color-gold-400');
+        ->toContain('--color-brand-600: #1b6c47')
+        ->toContain('--color-gold-400: #f5c518');
 
     $views = array_merge(
         themeViews(),
@@ -106,9 +106,42 @@ test('the theme paints in the DAR green and gold rather than indigo', function (
         glob(resource_path('views/components/*.blade.php')),
     );
 
+    // Views name `brand-*` and `gold-*`, never one palette's own colour, so
+    // the two palettes cannot drift apart. `indigo-*` stands in for any
+    // Tailwind palette utility a view might reach for directly.
     foreach ($views as $view) {
-        expect(file_get_contents($view))->not->toContain('indigo');
+        expect(file_get_contents($view))->not->toContain('indigo-');
     }
+});
+
+test('the iris palette re-points both ramps, so no view needs palette classes', function () {
+    $css = file_get_contents(resource_path('css/app.css'));
+
+    expect(preg_match("/:root\[data-palette='iris'\]\s*\{(.*?)\}/s", $css, $matches))->toBe(1);
+
+    $iris = $matches[1];
+
+    expect($iris)
+        ->toContain('--color-brand-50')
+        ->toContain('--color-brand-600')
+        ->toContain('--color-brand-950')
+        ->toContain('--color-gold-300')
+        ->toContain('--color-gold-400')
+        ->toContain('--color-gold-950')
+        // The DAR values must not leak through: the whole point is that the
+        // same variable is read by both palettes.
+        ->not->toContain('#1b6c47')
+        ->not->toContain('#f5c518');
+});
+
+test('the sidebar offers both palettes and remembers the choice', function () {
+    $html = test()->get(route('admin.dashboard'))->assertOk()->getContent();
+
+    expect($html)
+        ->toContain('aria-label="Color palette"')
+        ->toContain("setPalette('dar')")
+        ->toContain("setPalette('iris')")
+        ->toContain('darmois:palette');
 });
 
 test('dark mode placeholders are not gray-400, which is only 2.73:1 on the input background', function () {

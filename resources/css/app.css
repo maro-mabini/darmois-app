@@ -55,6 +55,46 @@
     --color-gold-950: #362200;
 }
 
+/*
+ * Alternate palettes.
+ *
+ * The ramps above are the DAR seal's own pairing and stay the default. A
+ * palette named on <html> re-points the same two ramps, so every control,
+ * link, focus ring and chart bar follows -- no view needs to know which
+ * palette is on, and no utility needs a second variant.
+ *
+ * The rule sits outside `@layer` on purpose: `@theme` emits into
+ * `@layer theme`, and an unlayered declaration always beats a layered one.
+ *
+ * `iris` walks the blue-violet side of the wheel: indigo carries the
+ * interface, violet is the accent that does the work gold does above.
+ */
+:root[data-palette='iris'] {
+    --color-brand-50: #eef2ff;
+    --color-brand-100: #e0e7ff;
+    --color-brand-200: #c7d2fe;
+    --color-brand-300: #a5b4fc;
+    --color-brand-400: #818cf8;
+    --color-brand-500: #6366f1;
+    --color-brand-600: #4f46e5;
+    --color-brand-700: #4338ca;
+    --color-brand-800: #3730a3;
+    --color-brand-900: #312e81;
+    --color-brand-950: #1e1b4b;
+
+    --color-gold-50: #faf5ff;
+    --color-gold-100: #f3e8ff;
+    --color-gold-200: #e9d5ff;
+    --color-gold-300: #d8b4fe;
+    --color-gold-400: #c084fc;
+    --color-gold-500: #a855f7;
+    --color-gold-600: #9333ea;
+    --color-gold-700: #7e22ce;
+    --color-gold-800: #6b21a8;
+    --color-gold-900: #581c87;
+    --color-gold-950: #3b0764;
+}
+
 @layer base {
     /*
      * Alpine sets this only once the element is initialised, so anything using
