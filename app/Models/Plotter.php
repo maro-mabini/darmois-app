@@ -101,11 +101,11 @@ class Plotter extends Model
      * plus the start. `gap` is the distance between the last corner and the
      * first, measured in the description's own units.
      *
-     * @return array{points: array<int, array{x: float, y: float}>, gap: float, closed: bool}
+     * @return array{points: non-empty-list<array{x: float, y: float}>, gap: float, closed: bool}
      */
     public function corners(): array
     {
-        /** @var array<int, array{x: float, y: float}> $points */
+        /** @var non-empty-list<array{x: float, y: float}> $points */
         $points = [['x' => 0.0, 'y' => 0.0]];
         $x = 0.0;
         $y = 0.0;

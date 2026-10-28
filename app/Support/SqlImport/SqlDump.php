@@ -61,7 +61,10 @@ final class SqlDump
      */
     public function insertTargets(): array
     {
-        return self::tablesInStatements($this->statements, '/^INSERT\s+INTO|^REPLACE\s+INTO/i');
+        return array_values(array_filter(
+            self::tablesInStatements($this->statements, '/^INSERT\s+INTO|^REPLACE\s+INTO/i'),
+            fn (string $table): bool => $table !== DatabaseImporter::LEDGER,
+        ));
     }
 
     public function rowCount(): int

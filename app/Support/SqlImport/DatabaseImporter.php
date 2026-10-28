@@ -31,11 +31,22 @@ final class DatabaseImporter
     public const APPEND = 'append';
 
     /**
+     * The table that records which migrations THIS database has run.
+     *
+     * A dump carries the other server's history, which is a different list on
+     * a different filesystem. Loading it over the local one either erases
+     * migrations this database has already applied (the next `migrate` then
+     * tries to recreate their tables) or duplicates every name, so the file's
+     * copy is reported and left out of the load.
+     */
+    public const LEDGER = 'migrations';
+
+    /**
      * @return array{
      *     dialect: string,
      *     mode: string,
      *     backup: string|null,
-     *     tables: list<array{table: string, rows: int, skipped: bool}>,
+     *     tables: list<array{table: string, rows: int, skipped: bool, note?: string}>,
      *     statements: int,
      *     dangling: list<string>
      * }
@@ -94,7 +105,7 @@ final class DatabaseImporter
     }
 
     /**
-     * @return list<array{table: string, rows: int, skipped: bool}>
+     * @return list<array{table: string, rows: int, skipped: bool, note?: string}>
      */
     private function importDatasets(SqlDump $dump, string $mode, bool $sqlite): array
     {
@@ -103,6 +114,12 @@ final class DatabaseImporter
         $targets = [];
 
         foreach (array_keys($dump->datasets) as $table) {
+            if ($table === self::LEDGER && in_array($table, $existing, true)) {
+                $tables[] = ['table' => $table, 'rows' => 0, 'skipped' => true, 'note' => 'Migration history kept'];
+
+                continue;
+            }
+
             if (in_array($table, $existing, true)) {
                 $targets[] = $table;
 
@@ -202,7 +219,7 @@ final class DatabaseImporter
     }
 
     /**
-     * @return array{0: list<array{table: string, rows: int, skipped: bool}>, 1: int}
+     * @return array{0: list<array{table: string, rows: int, skipped: bool, note?: string}>, 1: int}
      */
     private function runStatements(SqlDump $dump, string $mode): array
     {
@@ -223,8 +240,15 @@ final class DatabaseImporter
 
         $pdo = DB::connection()->getPdo();
         $statements = 0;
+        $ledgerKept = false;
 
         foreach ($dump->statements as $statement) {
+            if ($this->writesLedger($statement)) {
+                $ledgerKept = true;
+
+                continue;
+            }
+
             $pdo->exec($statement);
             $statements++;
         }
@@ -238,14 +262,32 @@ final class DatabaseImporter
         foreach ($dump->tables() as $table) {
             $known = in_array($table, $existingAfter, true);
 
-            $tables[] = [
+            $entry = [
                 'table' => $table,
                 'rows' => $known ? max(0, DB::table($table)->count() - ($before[$table] ?? 0)) : 0,
                 'skipped' => ! $known,
             ];
+
+            if ($ledgerKept && $table === self::LEDGER && $known) {
+                $entry = [...$entry, 'note' => 'Migration history kept'];
+            }
+
+            $tables[] = $entry;
         }
 
         return [$tables, $statements];
+    }
+
+    /**
+     * Whether a statement would rewrite this database's migration history,
+     * which is the one table a restore from another server must leave alone.
+     */
+    private function writesLedger(string $statement): bool
+    {
+        return preg_match(
+            '/^(?:INSERT\s+INTO|REPLACE\s+INTO|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?(?:\s+ONLY)?)\s+"?'.self::LEDGER.'"?\b/i',
+            $statement,
+        ) === 1;
     }
 
     /**

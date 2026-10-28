@@ -7,6 +7,7 @@ use App\Models\RecordType;
 use App\Support\SqlImport\DatabaseImporter;
 use App\Support\SqlImport\SqlDump;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -72,6 +73,61 @@ function importDump(string $sql): SqlDump
     }
 }
 
+/**
+ * The shape pg_dump 17 actually writes: CRLF line endings, the \restrict
+ * psql meta command, SET and catalog noise, sequences with setval, OWNER TO
+ * clauses, and the DDL SQLite could never run — none of which may reach the
+ * database or disturb the COPY blocks around them.
+ *
+ * @param  array<string, array{columns: list<string>, rows: list<string>}>  $datasets
+ */
+function pg17DumpForImport(array $datasets): string
+{
+    $lines = [
+        '--',
+        '-- PostgreSQL database dump',
+        '--',
+        '',
+        '\\restrict 0123456789abcdef0123456789abcdef0123456789',
+        '',
+        '-- Dumped from database version 17.11',
+        '-- Dumped by pg_dump version 17.11',
+        '',
+        'SET statement_timeout = 0;',
+        'SET lock_timeout = 0;',
+        "SET client_encoding = 'UTF8';",
+        'SET standard_conforming_strings = on;',
+        "SELECT pg_catalog.set_config('search_path', '', false);",
+        'SET default_table_access_method = heap;',
+        '',
+    ];
+
+    foreach ($datasets as $table => $dataset) {
+        $lines[] = "CREATE TABLE public.{$table} (";
+        $lines[] = '    id bigint NOT NULL';
+        $lines[] = ');';
+        $lines[] = "ALTER TABLE public.{$table} OWNER TO darmois;";
+        $lines[] = "CREATE SEQUENCE public.{$table}_id_seq";
+        $lines[] = '    START WITH 1';
+        $lines[] = '    INCREMENT BY 1;';
+        $lines[] = "ALTER TABLE public.{$table}_id_seq OWNED BY public.{$table}.id;";
+        $lines[] = '';
+        $lines[] = "-- Data for Name: {$table}; Type: TABLE DATA; Schema: public; Owner: darmois";
+        $lines[] = '';
+        $lines[] = 'COPY public.'.$table.' ('.implode(', ', $dataset['columns']).') FROM stdin;';
+        array_push($lines, ...$dataset['rows']);
+        $lines[] = '\\.';
+        $lines[] = '';
+    }
+
+    $lines[] = "SELECT pg_catalog.setval('public.record_types_id_seq', 7, true);";
+    $lines[] = '';
+    $lines[] = '\\restrict 0123456789abcdef0123456789abcdef0123456789';
+    $lines[] = '';
+
+    return implode("\r\n", $lines)."\r\n";
+}
+
 test('the import page renders through the router', function () {
     $this->get(route('admin.import.index'))
         ->assertOk()
@@ -83,6 +139,21 @@ test('the import page is offered in the navigation', function () {
     $this->get(route('admin.dashboard'))
         ->assertOk()
         ->assertSee(route('admin.import.index'), escape: false);
+});
+
+test('offers both ways to load the file and asks before replacing', function () {
+    $page = Livewire::test('admin::import.index')
+        // Appending is the safe default: nothing already here is touched.
+        ->assertSet('mode', DatabaseImporter::APPEND)
+        ->assertSee('How to load it')
+        ->assertSee('Keeps every row already here')
+        ->assertSee('Empties every table the file covers')
+        ->assertSee('wire:click="import"', escape: false);
+
+    $page->set('mode', DatabaseImporter::REPLACE)
+        // Replace does not fire on click; it opens the confirmation dialog.
+        ->assertSee('$dispatch(\'modal-open\', \'import-replace\')', escape: false)
+        ->assertSee('Replace the database?');
 });
 
 test('the import page does not exist in production', function () {
@@ -318,4 +389,151 @@ test('puts the database back when a load fails halfway', function () {
         ->toThrow(RuntimeException::class);
 
     expect(RecordType::query()->pluck('name')->all())->toBe(['Existing Type']);
+});
+
+test('reads a pg_dump 17 file the way pg_dump 17 writes it', function () {
+    $dump = importDump(pg17DumpForImport([
+        'record_types' => [
+            'columns' => ['id', 'name', 'created_at', 'updated_at'],
+            'rows' => [
+                copyRow([1, 'Case File', '2026-01-01 00:00:00', '2026-01-01 00:00:00']),
+                copyRow([2, null, '2026-01-01 00:00:00', '2026-01-01 00:00:00']),
+            ],
+        ],
+        'locations' => [
+            'columns' => ['id', 'name', 'description', 'created_at', 'updated_at'],
+            'rows' => [copyRow([1, 'Cabinet 1', 'First\nline', '2026-01-01 00:00:00', '2026-01-01 00:00:00'])],
+        ],
+    ]));
+
+    // None of the psql noise survives: no SET, no DDL, no setval, no \restrict.
+    expect($dump->dialect)->toBe(SqlDump::POSTGRES)
+        ->and($dump->statements)->toBe([])
+        ->and($dump->rowCount())->toBe(3)
+        ->and($dump->datasets['record_types']['rows'][1][1])->toBeNull()
+        ->and($dump->datasets['locations']['rows'][0][2])->toBe("First\nline");
+});
+
+test('loads a pg_dump 17 file into sqlite', function () {
+    $dump = importDump(pg17DumpForImport([
+        'record_types' => [
+            'columns' => ['id', 'name', 'created_at', 'updated_at'],
+            'rows' => [
+                copyRow([1, 'Case File', '2026-01-01 00:00:00', '2026-01-01 00:00:00']),
+                copyRow([2, 'Profile', '2026-01-01 00:00:00', '2026-01-01 00:00:00']),
+            ],
+        ],
+        'records_owners' => [
+            'columns' => [
+                'id', 'uuid', 'owner_name', 'location_id', 'station_id',
+                'owner_type_id', 'record_type_id', 'created_at', 'updated_at',
+            ],
+            'rows' => [copyRow([4, (string) Str::uuid(), 'Ada Lovelace', null, null, 1, 2, '2026-01-01 00:00:00', '2026-01-01 00:00:00'])],
+        ],
+        'owner_types' => [
+            'columns' => ['id', 'name', 'created_at', 'updated_at'],
+            'rows' => [copyRow([1, 'ARB', '2026-01-01 00:00:00', '2026-01-01 00:00:00'])],
+        ],
+    ]));
+
+    $report = app(DatabaseImporter::class)->import($dump, DatabaseImporter::REPLACE);
+
+    expect(RecordType::query()->orderBy('id')->pluck('name')->all())
+        ->toBe(['Case File', 'Profile'])
+        ->and(RecordsOwner::query()->sole()->record_type_id)->toBe(2)
+        ->and($report['dangling'])->toBe([]);
+});
+
+test('keeps this databases migration history out of a restore', function () {
+    $ledger = DB::table('migrations')->orderBy('id')->pluck('migration')->all();
+
+    $dump = importDump(pgDumpForImport([
+        'record_types' => [
+            'columns' => ['id', 'name', 'created_at', 'updated_at'],
+            'rows' => [copyRow([1, 'Case File', '2026-01-01 00:00:00', '2026-01-01 00:00:00'])],
+        ],
+        'migrations' => [
+            'columns' => ['id', 'migration', 'batch'],
+            'rows' => [
+                copyRow([1, '2015_10_21_000000_create_other_servers_table', 1]),
+                copyRow([2, '2015_10_21_000001_more_of_the_other_servers', 1]),
+            ],
+        ],
+    ]));
+
+    $report = app(DatabaseImporter::class)->import($dump, DatabaseImporter::REPLACE);
+
+    $entry = collect($report['tables'])->firstWhere('table', 'migrations');
+    $types = collect($report['tables'])->firstWhere('table', 'record_types');
+
+    expect(DB::table('migrations')->orderBy('id')->pluck('migration')->all())->toBe($ledger)
+        ->and($entry['skipped'])->toBeTrue()
+        ->and($entry['rows'])->toBe(0)
+        ->and($entry['note'])->toBe('Migration history kept')
+        ->and($types['skipped'])->toBeFalse()
+        ->and($types['rows'])->toBe(1);
+});
+
+test('the report says the migration history was kept', function () {
+    Livewire::test('admin::import.index')
+        ->set('file', UploadedFile::fake()->createWithContent('dump.sql', pgDumpForImport([
+            'migrations' => [
+                'columns' => ['id', 'migration', 'batch'],
+                'rows' => [copyRow([1, '2015_10_21_000000_create_other_servers_table', 1])],
+            ],
+            'record_types' => [
+                'columns' => ['id', 'name', 'created_at', 'updated_at'],
+                'rows' => [copyRow([1, 'Case File', '2026-01-01 00:00:00', '2026-01-01 00:00:00'])],
+            ],
+        ])))
+        ->set('mode', DatabaseImporter::REPLACE)
+        ->call('import')
+        ->assertHasNoErrors()
+        ->assertDispatched('toast', message: '1 row imported.')
+        ->assertSee('Migration history kept');
+});
+
+test('keeps the migration history when a plain file rewrites it', function () {
+    $ledger = DB::table('migrations')->orderBy('id')->pluck('migration')->all();
+
+    $dump = importDump(implode("\n", [
+        'DELETE FROM migrations;',
+        "INSERT INTO migrations (id, migration, batch) VALUES (1, '2015_10_21_000000_create_other_servers_table', 1);",
+        "INSERT INTO record_types (id, name, created_at, updated_at) VALUES (10, 'Case File', '2026-01-01 00:00:00', '2026-01-01 00:00:00');",
+    ]));
+
+    $report = app(DatabaseImporter::class)->import($dump, DatabaseImporter::APPEND);
+
+    $entry = collect($report['tables'])->firstWhere('table', 'migrations');
+
+    expect(DB::table('migrations')->orderBy('id')->pluck('migration')->all())->toBe($ledger)
+        ->and($entry['note'])->toBe('Migration history kept')
+        ->and($report['statements'])->toBe(1)
+        ->and(RecordType::query()->where('name', 'Case File')->exists())->toBeTrue();
+});
+
+test('restores the real pg dump from the project root and leaves migrate working', function () {
+    $path = base_path('darmois_backup.sql');
+
+    if (! is_file($path)) {
+        $this->markTestSkipped('No backup file in the project root.');
+    }
+
+    $dump = SqlDump::fromPath($path);
+
+    expect($dump->dialect)->toBe(SqlDump::POSTGRES)
+        ->and($dump->rowCount())->toBeGreaterThan(0);
+
+    $report = app(DatabaseImporter::class)->import($dump, DatabaseImporter::REPLACE);
+
+    // The tables this app cares about, loaded from the COPY blocks.
+    expect(DB::table('record_types')->count())->toBe(7)
+        ->and(DB::table('records_owners')->count())->toBe(16)
+        ->and(DB::table('files')->count())->toBe(32)
+        ->and($report['dangling'])->toBe([])
+        ->and(collect($report['tables'])->firstWhere('table', 'migrations')['note'])
+        ->toBe('Migration history kept');
+
+    // The whole point of keeping the ledger: the next migrate must survive it.
+    expect(Artisan::call('migrate', ['--force' => true]))->toBe(0);
 });

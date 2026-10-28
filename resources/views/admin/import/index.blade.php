@@ -36,7 +36,7 @@ new class extends Component {
      *     dialect: string,
      *     mode: string,
      *     backup: string|null,
-     *     tables: list<array{table: string, rows: int, skipped: bool}>,
+     *     tables: list<array{table: string, rows: int, skipped: bool, note?: string}>,
      *     statements: int,
      *     dangling: list<string>
      * }|null
@@ -133,8 +133,8 @@ new class extends Component {
             Import
         </h1>
         <p class="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-300">
-            Load a .sql file into this database. A pg_dump from the old server is translated into the tables
-            this app already has; plain SQL is run as written.
+            Load a .sql file into this database. A pg_dump from the old PostgreSQL server is translated from
+            psql's dialect into the tables this SQLite database already has; plain SQL is run as written.
         </p>
     </header>
 
@@ -197,7 +197,7 @@ new class extends Component {
                                 <td class="px-3 py-2">
                                     @if ($entry['skipped'])
                                         <span class="inline-flex rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-                                            Not in this schema
+                                            {{ $entry['note'] ?? 'Not in this schema' }}
                                         </span>
                                     @else
                                         <span class="inline-flex rounded-md bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
@@ -374,6 +374,27 @@ new class extends Component {
                         from its COPY blocks. Rows go into the tables this app already has; tables it does not
                         have (<span class="font-mono text-xs">sessions</span>,
                         <span class="font-mono text-xs">jobs</span>) are skipped and listed.
+                    </span>
+                </li>
+                <li class="flex gap-2">
+                    <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-600"></span>
+                    <span>
+                        <span class="font-medium text-gray-900 dark:text-white">PostgreSQL differences are
+                        translated:</span>
+                        <span class="font-mono text-xs">public.</span> prefixes and the
+                        <span class="font-mono text-xs">SET</span> / <span class="font-mono text-xs">COPY</span> /
+                        <span class="font-mono text-xs">ALTER … OWNER</span> commands SQLite cannot run are
+                        dropped, and NULLs written as <span class="font-mono text-xs">\N</span> are read back.
+                        Ids the file carries are kept, so sequences stay ahead of them and no later insert
+                        collides.
+                    </span>
+                </li>
+                <li class="flex gap-2">
+                    <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500"></span>
+                    <span>
+                        The <span class="font-medium text-gray-900 dark:text-white">migration history</span> in
+                        the file belongs to the other server, so it is reported but never loaded over this
+                        database's own — otherwise the next migrate would try to rebuild tables that exist.
                     </span>
                 </li>
                 <li class="flex gap-2">

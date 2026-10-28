@@ -171,7 +171,8 @@ class DxfDrawing
         $padding = $textHeight * 1.2;
         $characterWidth = $textHeight * 0.62;
 
-        $longest = max(array_map(static fn (string $line): int => mb_strlen($line), $title));
+        $lengths = array_map(static fn (string $line): int => mb_strlen($line), $title);
+        $longest = $lengths === [] ? 0 : max($lengths);
         $width = max($span, $longest * $characterWidth + 2 * $padding);
         $height = count($title) * $lineHeight + 2 * $padding;
 
