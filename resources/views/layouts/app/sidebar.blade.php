@@ -130,13 +130,19 @@
                 'label' => 'Stations',
                 'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />',
             ],
+            [
+                'route' => 'admin.plotter.index',
+                'pattern' => 'admin.plotter.*',
+                'label' => 'Plotter',
+                'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />',
+            ],
         ];
     @endphp
 
     <div class="min-h-full lg:flex">
         {{-- Mobile bar. The sidebar is a drawer below lg, so it needs a way in. --}}
         <header
-            class="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 lg:hidden"
+            class="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-gray-200 bg-white px-4 print:hidden dark:border-gray-800 dark:bg-gray-900 lg:hidden"
         >
             <button
                 type="button"
@@ -186,7 +192,7 @@
                 open ? 'translate-x-0' : '-translate-x-full',
                 collapsed ? 'lg:w-20' : 'lg:w-64',
             ]"
-            class="fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white transition-[width,transform] duration-300 ease-in-out group/sidebar dark:border-gray-800 dark:bg-gray-900 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
+            class="fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white transition-[width,transform] duration-300 ease-in-out print:hidden group/sidebar dark:border-gray-800 dark:bg-gray-900 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
         >
             {{--
                 `relative` so the collapse toggle can be positioned against the
@@ -340,7 +346,7 @@
         x-show="! open"
         x-on:click.outside="appearanceOpen = false"
         x-on:keydown.escape.window="appearanceOpen = false"
-        class="fixed right-5 bottom-5 z-[550] flex flex-col items-end gap-3 sm:right-6 sm:bottom-6"
+        class="fixed right-5 bottom-5 z-[550] flex flex-col items-end gap-3 print:hidden sm:right-6 sm:bottom-6"
     >
         {{--
             The panel. Stacked above the button by DOM order, and scaled from

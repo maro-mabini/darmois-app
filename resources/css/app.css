@@ -188,3 +188,37 @@
         color-scheme: dark;
     }
 }
+
+/*
+ * Paper gets the plot and nothing else. The page hides its chrome with
+ * `print:` utilities; these rules force a light canvas even when the screen is
+ * in dark mode, and flatten the panel so the drawing sits directly on the page.
+ */
+@media print {
+    @page {
+        margin: 12mm;
+    }
+
+    html,
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    .plot-print,
+    .plot-print * {
+        color: #000 !important;
+        box-shadow: none !important;
+    }
+
+    .plot-print {
+        background: #fff !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    /* The sheet carries its own heading, so the panel's title bar would just repeat it. */
+    .plot-print > header {
+        display: none !important;
+    }
+}
