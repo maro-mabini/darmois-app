@@ -178,3 +178,36 @@ test('reads a due course in the spelled out form', function () {
         ->and(round($lines[0]['azimuth'], 5))->toEqual(270.0)
         ->and($lines[0]['distance'])->toEqual(100.0);
 });
+
+test('walks the tie lines into north-up corners', function () {
+    $plotter = Plotter::factory()->make([
+        'raw_text' => implode("\n", [
+            'LINE: 1, BEARING: N. 90 degree, E, DISTANCE: 100 M.',
+            'LINE: 2, BEARING: S. 0 degree, E, DISTANCE: 100 M.',
+            'LINE: 3, BEARING: N. 90 degree, W, DISTANCE: 100 M.',
+            'LINE: 4, BEARING: N. 0 degree, W, DISTANCE: 100 M.',
+        ]),
+    ]);
+
+    $corners = $plotter->corners();
+
+    expect($corners['points'])->toHaveCount(5)
+        ->and($corners['points'][0])->toEqual(['x' => 0.0, 'y' => 0.0])
+        // North is positive y, east is positive x.
+        ->and(round($corners['points'][1]['x'], 5))->toEqual(100.0)
+        ->and(round($corners['points'][1]['y'], 5))->toEqual(0.0)
+        ->and(round($corners['points'][2]['y'], 5))->toEqual(-100.0)
+        ->and($corners['closed'])->toBeTrue()
+        ->and(round($corners['gap'], 5))->toEqual(0.0);
+});
+
+test('reports the gap of a description that does not close', function () {
+    $plotter = Plotter::factory()->make([
+        'raw_text' => 'LINE: 1, BEARING: N. 90 degree, E, DISTANCE: 100 M.',
+    ]);
+
+    $corners = $plotter->corners();
+
+    expect($corners['closed'])->toBeFalse()
+        ->and(round($corners['gap'], 5))->toEqual(100.0);
+});

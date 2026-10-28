@@ -1,11 +1,16 @@
 <?php
 
 use App\Models\Plotter;
+use App\Support\Drawing\DxfDrawing;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 new class extends Component {
     use WithPagination;
@@ -21,6 +26,8 @@ new class extends Component {
 
     public string $survey_number = '';
 
+    public string $title_name = '';
+
     public string $area = '';
 
     public string $location = '';
@@ -28,14 +35,56 @@ new class extends Component {
     public string $raw_text = '';
 
     /**
-     * The saved plotters, newest first.
+     * Free text matched against the title number, title name, lot, survey and
+     * location of the saved plotters.
+     */
+    #[Url(as: 'search', except: '')]
+    public string $search = '';
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    /**
+     * Drop the search and return to the first page.
+     */
+    public function clearFilters(): void
+    {
+        $this->reset('search');
+    }
+
+    /**
+     * Whether anything is currently narrowing the list.
+     */
+    #[Computed]
+    public function isFiltered(): bool
+    {
+        return $this->searchTerm() !== '';
+    }
+
+    /**
+     * The saved plotters matching the search, newest first.
      *
      * @return LengthAwarePaginator<int, Plotter>
      */
     #[Computed]
     public function plotters()
     {
-        return Plotter::query()->latest('id')->paginate(15);
+        return Plotter::query()
+            ->when($this->searchTerm() !== '', function (Builder $query) {
+                $term = '%'.$this->likePattern($this->searchTerm()).'%';
+
+                $query->where(function (Builder $query) use ($term) {
+                    $query->whereRaw("title_number LIKE ? ESCAPE '\\'", [$term])
+                        ->orWhereRaw("title_name LIKE ? ESCAPE '\\'", [$term])
+                        ->orWhereRaw("lot_number LIKE ? ESCAPE '\\'", [$term])
+                        ->orWhereRaw("survey_number LIKE ? ESCAPE '\\'", [$term])
+                        ->orWhereRaw("location LIKE ? ESCAPE '\\'", [$term]);
+                });
+            })
+            ->latest('id')
+            ->paginate(15);
     }
 
     /**
@@ -91,19 +140,16 @@ new class extends Component {
         $height = 560;
         $padding = 80;
 
+        $corners = $this->draft()->corners();
+
+        // SVG's y axis points down, so the survey's north-up y is flipped here
+        // rather than in the model, which hands out coordinates a CAD file can
+        // use as they are.
         /** @var array<int, array{x: float, y: float}> $world */
-        $world = [['x' => 0.0, 'y' => 0.0]];
-        $x = 0.0;
-        $y = 0.0;
-
-        foreach ($lines as $line) {
-            $bearing = deg2rad($line['azimuth']);
-
-            $x += $line['distance'] * sin($bearing);
-            $y -= $line['distance'] * cos($bearing);
-
-            $world[] = ['x' => $x, 'y' => $y];
-        }
+        $world = array_map(
+            static fn (array $point): array => ['x' => $point['x'], 'y' => -$point['y']],
+            $corners['points'],
+        );
 
         $minX = min(array_column($world, 'x'));
         $maxX = max(array_column($world, 'x'));
@@ -159,10 +205,8 @@ new class extends Component {
 
         // The gap between the last corner and the first is measured in survey
         // units, not in pixels, because it is reported to the user as a distance.
-        // Anything under half a unit is the floating point of a figure that
-        // does close, and is treated as closed.
-        $lastWorld = $world[array_key_last($world)];
-        $gap = hypot($lastWorld['x'] - $world[0]['x'], $lastWorld['y'] - $world[0]['y']);
+        // The model decides whether it counts as closed.
+        $gap = $corners['gap'];
 
         $first = $points[0];
         $last = $points[array_key_last($points)];
@@ -202,6 +246,7 @@ new class extends Component {
         $this->title_number = '';
         $this->lot_number = '';
         $this->survey_number = '';
+        $this->title_name = '';
         $this->area = '';
         $this->location = '';
         $this->raw_text = '';
@@ -219,6 +264,7 @@ new class extends Component {
         $this->title_number = $model->title_number;
         $this->lot_number = $model->lot_number;
         $this->survey_number = $model->survey_number;
+        $this->title_name = (string) ($model->title_name ?? '');
         $this->area = (string) ($model->area ?? '');
         $this->location = (string) ($model->location ?? '');
         $this->raw_text = $model->raw_text;
@@ -250,6 +296,7 @@ new class extends Component {
         $plotter->title_number = (string) $validated['title_number'];
         $plotter->lot_number = (string) $validated['lot_number'];
         $plotter->survey_number = (string) $validated['survey_number'];
+        $plotter->title_name = ($validated['title_name'] ?? '') !== '' ? (string) $validated['title_name'] : null;
         $plotter->area = ($validated['area'] ?? '') !== '' ? (string) $validated['area'] : null;
         $plotter->location = ($validated['location'] ?? '') !== '' ? (string) $validated['location'] : null;
         $plotter->raw_text = (string) $validated['raw_text'];
@@ -294,6 +341,102 @@ new class extends Component {
     }
 
     /**
+     * Download the plot on screen as a DXF drawing.
+     *
+     * The form's values are drawn rather than a saved row, so what is
+     * downloaded is what is being looked at. Nothing touches the disk: the
+     * file is streamed straight back to the browser.
+     */
+    public function download(): ?StreamedResponse
+    {
+        if ($this->tieLines === []) {
+            $this->dispatch('toast', message: 'There is nothing to download yet.');
+
+            return null;
+        }
+
+        $plotter = new Plotter([
+            'title_number' => $this->title_number,
+            'lot_number' => $this->lot_number,
+            'survey_number' => $this->survey_number,
+            'title_name' => $this->title_name !== '' ? $this->title_name : null,
+            'area' => $this->area !== '' ? $this->area : null,
+            'location' => $this->location !== '' ? $this->location : null,
+            'raw_text' => $this->raw_text,
+        ]);
+
+        return response()->streamDownload(
+            static fn () => print DxfDrawing::fromPlotter($plotter),
+            DxfDrawing::filename($plotter),
+            ['Content-Type' => 'application/dxf'],
+        );
+    }
+
+    /**
+     * Highlight occurrences of the active search term inside the given text.
+     */
+    public function highlight(?string $text): HtmlString
+    {
+        if ($text === null || $text === '') {
+            return new HtmlString('');
+        }
+
+        $term = $this->searchTerm();
+
+        if ($term === '') {
+            return new HtmlString(e($text));
+        }
+
+        $pattern = '/'.preg_quote($term, '/').'/i';
+
+        if (! preg_match_all($pattern, $text, $matches, PREG_OFFSET_CAPTURE)) {
+            return new HtmlString(e($text));
+        }
+
+        $result = '';
+        $lastOffset = 0;
+
+        foreach ($matches[0] as $match) {
+            $matchText = $match[0];
+            $matchOffset = (int) $match[1];
+            $matchLen = strlen($matchText);
+
+            if ($matchOffset > $lastOffset) {
+                $result .= e(substr($text, $lastOffset, $matchOffset - $lastOffset));
+            }
+
+            $result .= '<mark class="rounded-xs bg-amber-200 px-0.5 font-medium text-gray-900 dark:bg-amber-500/30 dark:text-amber-200">'.e($matchText).'</mark>';
+
+            $lastOffset = $matchOffset + $matchLen;
+        }
+
+        if ($lastOffset < strlen($text)) {
+            $result .= e(substr($text, $lastOffset));
+        }
+
+        return new HtmlString($result);
+    }
+
+    /**
+     * The trimmed search term, or an empty string when the box holds only spaces.
+     */
+    private function searchTerm(): string
+    {
+        return trim($this->search);
+    }
+
+    /**
+     * Escape LIKE wildcards so a literal % or _ is matched literally.
+     *
+     * The escape character is declared in the query rather than assumed: SQLite
+     * treats a backslash as an ordinary character without an ESCAPE clause.
+     */
+    private function likePattern(string $term): string
+    {
+        return addcslashes($term, '\\%_');
+    }
+
+    /**
      * A distance without the trailing zeros a two-decimal format would add.
      */
     protected function formatDistance(float $distance): string
@@ -310,6 +453,7 @@ new class extends Component {
             'title_number' => ['required', 'string', 'max:255'],
             'lot_number' => ['required', 'string', 'max:255'],
             'survey_number' => ['required', 'string', 'max:255'],
+            'title_name' => ['nullable', 'string', 'max:255'],
             'area' => ['nullable', 'string', 'max:255'],
             'location' => ['nullable', 'string', 'max:255'],
             'raw_text' => ['required', 'string', 'max:20000'],
@@ -362,6 +506,10 @@ new class extends Component {
                         <x-form.input name="area" autocomplete="off" placeholder="1,200 sq. m." />
                     </x-form.field>
                 </div>
+
+                <x-form.field label="Name on title" name="title_name" hint="The registered owner written on the title, when the title carries one.">
+                    <x-form.input name="title_name" autocomplete="off" placeholder="Juan Dela Cruz" />
+                </x-form.field>
 
                 <x-form.field label="Location" name="location">
                     <x-form.input name="location" autocomplete="off" placeholder="Barangay San Isidro" />
@@ -421,6 +569,10 @@ new class extends Component {
                     <p class="mt-1 text-sm text-gray-700">
                         {{ implode(' · ', array_filter([$title_number, $area, $location])) }}
                     </p>
+                @endif
+
+                @if ($title_name !== '')
+                    <p class="mt-1 text-sm text-gray-700">Name on title: {{ $title_name }}</p>
                 @endif
             </div>
 
@@ -536,6 +688,15 @@ new class extends Component {
                                 class="rounded-md bg-white px-2 py-1.5 text-xs font-semibold text-gray-700 shadow-xs ring-1 ring-gray-300 hover:bg-gray-100 dark:bg-white/5 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-white/10"
                             >
                                 Fit
+                            </button>
+
+                            <button
+                                type="button"
+                                x-on:click="$wire.download()"
+                                title="Download the plot as a DXF drawing for AutoCAD, LibreCAD or QCAD"
+                                class="rounded-md bg-white px-2 py-1.5 text-xs font-semibold text-gray-700 shadow-xs ring-1 ring-gray-300 hover:bg-gray-100 dark:bg-white/5 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-white/10"
+                            >
+                                Download DXF
                             </button>
 
                             <button
@@ -669,11 +830,47 @@ new class extends Component {
     </div>
 
     <div class="mt-6 print:hidden">
-        <x-panel title="Saved plotters" description="Open one to plot it again." :padded="false">
+        <x-panel
+            title="Saved plotters"
+            :description="$this->isFiltered ? $this->plotters->total().' match your search.' : 'Open one to plot it again.'"
+            :padded="false"
+        >
+            <div class="flex flex-col gap-3 border-b border-gray-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+                <div class="relative sm:w-80">
+                    <label for="plotter-search" class="sr-only">Search saved plotters</label>
+
+                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-300">
+                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                        </svg>
+                    </span>
+
+                    <input
+                        id="plotter-search"
+                        type="search"
+                        wire:model.live.debounce.300ms="search"
+                        placeholder="Search title, name, lot, survey or location"
+                        autocomplete="off"
+                        class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 shadow-xs placeholder-gray-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-hidden [&::-webkit-search-cancel-button]:appearance-none dark:border-gray-700 dark:bg-white/5 dark:text-white dark:placeholder-gray-300"
+                    />
+                </div>
+
+                @if ($this->isFiltered)
+                    <button
+                        type="button"
+                        wire:click="clearFilters"
+                        class="shrink-0 self-start text-sm font-medium text-brand-600 hover:underline sm:self-auto dark:text-brand-300"
+                    >
+                        Clear search
+                    </button>
+                @endif
+            </div>
+
             <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
                 <thead class="bg-gray-50 dark:bg-gray-950">
                     <tr>
                         <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Title number</th>
+                        <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Name on title</th>
                         <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Lot</th>
                         <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Survey</th>
                         <th scope="col" class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300">Area</th>
@@ -687,19 +884,22 @@ new class extends Component {
                     @forelse ($this->plotters as $plotter)
                         <tr wire:key="plotter-{{ $plotter->id }}">
                             <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                {{ $plotter->title_number }}
+                                {{ $this->highlight($plotter->title_number) }}
                             </td>
                             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
-                                {{ $plotter->lot_number }}
+                                {{ $plotter->title_name !== null && $plotter->title_name !== '' ? $this->highlight($plotter->title_name) : '—' }}
                             </td>
                             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
-                                {{ $plotter->survey_number }}
+                                {{ $this->highlight($plotter->lot_number) }}
+                            </td>
+                            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
+                                {{ $this->highlight($plotter->survey_number) }}
                             </td>
                             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
                                 {{ $plotter->area ?? '—' }}
                             </td>
                             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
-                                {{ $plotter->location ?? '—' }}
+                                {{ $plotter->location !== null && $plotter->location !== '' ? $this->highlight($plotter->location) : '—' }}
                             </td>
                             <td class="px-4 py-3 text-right whitespace-nowrap">
                                 <button
@@ -722,8 +922,19 @@ new class extends Component {
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-4 py-16 text-center text-gray-500 dark:text-gray-300">
-                                No plotters saved yet.
+                            <td colspan="7" class="px-4 py-16 text-center text-gray-500 dark:text-gray-300">
+                                @if ($this->isFiltered)
+                                    No plotters match your search.
+                                    <button
+                                        type="button"
+                                        wire:click="clearFilters"
+                                        class="font-medium text-brand-600 hover:underline dark:text-brand-300"
+                                    >
+                                        Clear search
+                                    </button>
+                                @else
+                                    No plotters saved yet.
+                                @endif
                             </td>
                         </tr>
                     @endforelse

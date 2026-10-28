@@ -13,13 +13,14 @@ use Illuminate\Support\Carbon;
  * @property string $title_number
  * @property string $lot_number
  * @property string $survey_number
+ * @property string|null $title_name
  * @property string|null $area
  * @property string|null $location
  * @property string $raw_text
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['title_number', 'lot_number', 'survey_number', 'area', 'location', 'raw_text'])]
+#[Fillable(['title_number', 'lot_number', 'survey_number', 'title_name', 'area', 'location', 'raw_text'])]
 class Plotter extends Model
 {
     /** @use HasFactory<PlotterFactory> */
@@ -88,6 +89,46 @@ class Plotter extends Model
         }
 
         return $lines;
+    }
+
+    /**
+     * Walk the tie lines into the corners of the parcel, in survey units.
+     *
+     * x is east and y is north, so the shape can be handed to any drawing
+     * format as it stands -- the SVG flips y because its axis points down.
+     * The first corner is the origin and is repeated by the walk only when the
+     * description closes on itself, so `points` holds one entry per tie line
+     * plus the start. `gap` is the distance between the last corner and the
+     * first, measured in the description's own units.
+     *
+     * @return array{points: array<int, array{x: float, y: float}>, gap: float, closed: bool}
+     */
+    public function corners(): array
+    {
+        /** @var array<int, array{x: float, y: float}> $points */
+        $points = [['x' => 0.0, 'y' => 0.0]];
+        $x = 0.0;
+        $y = 0.0;
+
+        foreach ($this->tieLines() as $line) {
+            $bearing = deg2rad($line['azimuth']);
+
+            $x += $line['distance'] * sin($bearing);
+            $y += $line['distance'] * cos($bearing);
+
+            $points[] = ['x' => $x, 'y' => $y];
+        }
+
+        $last = $points[array_key_last($points)];
+        $gap = hypot($last['x'] - $points[0]['x'], $last['y'] - $points[0]['y']);
+
+        return [
+            'points' => $points,
+            'gap' => $gap,
+            // Anything under half a unit is the floating point of a figure that
+            // does close, and is treated as closed.
+            'closed' => $gap <= 0.005,
+        ];
     }
 
     /**

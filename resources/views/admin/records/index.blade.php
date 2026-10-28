@@ -703,7 +703,7 @@ new class extends Component {
                         <td class="px-3 py-3 font-medium whitespace-nowrap text-gray-900 dark:text-white">
                             <a
                                 href="{{ route('admin.records.show', $record) }}"
-                                x-on:click.prevent="$wire.navigate($el.href).catch(() => {})"
+                                wire:navigate
                                 class="hover:text-brand-600 hover:underline dark:hover:text-brand-300"
                             >
                                 {!! $this->highlight($record->owner_name) !!}
@@ -734,7 +734,7 @@ new class extends Component {
                         <td class="px-3 py-3 text-right whitespace-nowrap">
                             <a
                                 href="{{ route('admin.records.show', $record) }}"
-                                x-on:click.prevent="$wire.navigate($el.href).catch(() => {})"
+                                wire:navigate
                                 class="font-medium text-gray-600 hover:text-gray-900 hover:underline dark:text-gray-300 dark:hover:text-white"
                             >
                                 View

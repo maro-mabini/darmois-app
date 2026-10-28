@@ -95,3 +95,13 @@ test('paginates the records fifteen to a page', function () {
         ->assertOk()
         ->assertSee('Owner 15');
 });
+
+test('links to a record with wire:navigate instead of calling navigate on the component', function () {
+    $record = RecordsOwner::factory()->create();
+
+    $this->get(route('admin.records.index'))
+        ->assertOk()
+        ->assertSee(route('admin.records.show', $record), escape: false)
+        ->assertSee('wire:navigate', escape: false)
+        ->assertDontSee('$wire.navigate', escape: false);
+});

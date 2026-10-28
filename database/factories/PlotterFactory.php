@@ -24,6 +24,7 @@ class PlotterFactory extends Factory
             'title_number' => fake()->unique()->bothify('TCT-####-2026'),
             'lot_number' => fake()->bothify('LOT-##'),
             'survey_number' => fake()->bothify('PSD-#####'),
+            'title_name' => fake()->optional()->name(),
             'area' => fake()->optional()->randomElement(['1,200 sq. m.', '5,000 sq. m.', '8.4 has.']),
             'location' => fake()->optional()->city(),
             'raw_text' => implode("\n", [
