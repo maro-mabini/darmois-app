@@ -208,6 +208,22 @@ test('clearing the filters brings every record back', function () {
         ->assertSee('Grace Hopper');
 });
 
+test('opens the row of a matching record so its files are in view', function () {
+    $record = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+    File::factory()->for($record)->create(['file_name' => 'Deed of transfer.pdf']);
+
+    Livewire::test('admin::records.index')
+        ->set('search', 'ada')
+        ->assertSeeHtml('x-data="{ open: true }"');
+});
+
+test('leaves every row collapsed when nothing is searched', function () {
+    RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+
+    Livewire::test('admin::records.index')
+        ->assertSeeHtml('x-data="{ open: false }"');
+});
+
 test('a search resets pagination to the first page', function () {
     RecordsOwner::factory()
         ->count(20)

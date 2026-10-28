@@ -673,7 +673,7 @@ new class extends Component {
                 --}}
                 <tbody
                     wire:key="record-{{ $record->id }}"
-                    x-data="{ open: {{ $this->matchesSearch($record) ? 'true' : 'false' }}"
+                    x-data="{ open: {{ $this->matchesSearch($record) ? 'true' : 'false' }} }"
                     class="divide-y divide-gray-200 dark:divide-gray-800"
                 >
                     <tr
