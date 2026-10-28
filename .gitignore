@@ -11,6 +11,7 @@
 .env.backup
 .env.docker
 .env.production
+.env.ubuntu
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
