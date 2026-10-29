@@ -128,6 +128,17 @@ new class extends Component {
 ?>
 
 <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <a
+        href="{{ route('admin.settings.index') }}"
+        wire:navigate
+        class="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:text-brand-300"
+    >
+        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        Back to Settings
+    </a>
+
     <header>
         <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
             Import

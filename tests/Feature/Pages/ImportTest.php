@@ -135,10 +135,18 @@ test('the import page renders through the router', function () {
         ->assertSee('Choose a .sql file');
 });
 
-test('the import page is offered in the navigation', function () {
-    $this->get(route('admin.dashboard'))
+test('the import page is reached through settings', function () {
+    $content = $this->get(route('admin.dashboard'))->assertOk()->getContent();
+
+    preg_match('/<nav[^>]*aria-label="Main".*?<\/nav>/s', $content, $match);
+
+    // Import sits behind Settings now, so the nav itself must not offer it.
+    expect($match[0] ?? '')->not->toContain(route('admin.import.index'));
+
+    $this->get(route('admin.settings.index'))
         ->assertOk()
-        ->assertSee(route('admin.import.index'), escape: false);
+        ->assertSee(route('admin.import.index'), escape: false)
+        ->assertSee('Load a backup .sql file into this database.');
 });
 
 test('offers both ways to load the file and asks before replacing', function () {

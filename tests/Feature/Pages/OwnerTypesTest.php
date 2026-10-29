@@ -172,6 +172,6 @@ test('the owner type index renders both modals over http', function () {
 test('the owner type form and delete pages are gone', function () {
     $ownerType = OwnerType::factory()->create();
 
-    $this->get('/owner-types/create')->assertNotFound();
+    $this->get('/settings/owner-types/create')->assertNotFound();
     $this->get("/owner-types/{$ownerType->id}/edit")->assertNotFound();
 });

@@ -202,8 +202,8 @@ test('the retired create and edit pages are gone', function (string $path) {
     $this->get($path)->assertNotFound();
 })->with([
     'record create' => '/records/create',
-    'record type create' => '/record-types/create',
-    'owner type create' => '/owner-types/create',
+    'record type create' => '/settings/record-types/create',
+    'owner type create' => '/settings/owner-types/create',
 ]);
 
 test('the retired record and file edit pages are gone', function () {
@@ -213,6 +213,6 @@ test('the retired record and file edit pages are gone', function () {
     $this->get("/records/{$record->id}/edit")->assertNotFound();
     $this->get("/records/{$record->id}/files/create")->assertNotFound();
     $this->get("/records/{$record->id}/files/{$file->id}/edit")->assertNotFound();
-    $this->get("/record-types/{$record->id}/edit")->assertNotFound();
-    $this->get("/owner-types/{$record->id}/edit")->assertNotFound();
+    $this->get("/settings/record-types/{$record->id}/edit")->assertNotFound();
+    $this->get("/settings/owner-types/{$record->id}/edit")->assertNotFound();
 });

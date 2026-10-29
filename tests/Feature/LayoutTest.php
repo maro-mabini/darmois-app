@@ -57,12 +57,23 @@ test('the sidebar offers a drawer for small screens', function () {
 });
 
 test('the sidebar links to the real sections', function () {
-    $this->get(route('admin.records.index'))
-        ->assertOk()
-        ->assertSee(route('admin.dashboard'), escape: false)
-        ->assertSee(route('admin.records.index'), escape: false)
-        ->assertSee(route('admin.record-types.index'), escape: false)
-        ->assertSee(route('admin.owner-types.index'), escape: false);
+    $content = $this->get(route('admin.records.index'))->assertOk()->getContent();
+
+    preg_match('/<nav[^>]*aria-label="Main".*?<\/nav>/s', $content, $match);
+    $nav = $match[0] ?? '';
+
+    expect($nav)->toContain(route('admin.dashboard'))
+        ->and($nav)->toContain(route('admin.records.index'))
+        ->and($nav)->toContain(route('admin.settings.index'))
+        // The configuration pages are reached through Settings now. Their
+        // links still appear in page content (the dashboard headings point
+        // at them), so only the nav itself is held to the new shape.
+        ->and($nav)->not->toContain(route('admin.record-types.index'))
+        ->and($nav)->not->toContain(route('admin.owner-types.index'))
+        ->and($nav)->not->toContain(route('admin.locations.index'))
+        ->and($nav)->not->toContain(route('admin.stations.index'))
+        // Import is a configuration task too, so it lives behind Settings.
+        ->and($nav)->not->toContain(route('admin.import.index'));
 });
 
 test('the sidebar marks the current section for assistive technology', function () {
