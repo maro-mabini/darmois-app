@@ -385,6 +385,24 @@ test('a search resets pagination to the first page', function () {
         ->assertSee('TCT-0019');
 });
 
+test('clearing the search returns to the first page', function () {
+    Plotter::factory()
+        ->count(20)
+        ->sequence(...array_map(
+            fn (int $day) => ['title_number' => sprintf('TCT-%04d', $day), 'created_at' => now()->subDays($day)],
+            range(0, 19),
+        ))
+        ->create();
+
+    Livewire::test('admin::plotter.index')
+        ->set('search', 'TCT')
+        ->set('paginators.page', 2)
+        ->assertSee('TCT-0000', escape: false)
+        ->call('clearFilters')
+        ->assertSet('paginators.page', 1)
+        ->assertSee('TCT-0019', escape: false);
+});
+
 test('the search lives in the url so a filtered list can be shared', function () {
     Plotter::factory()->create(['title_name' => 'Maria Santos']);
     Plotter::factory()->create(['title_name' => 'Pedro Reyes']);

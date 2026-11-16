@@ -12,8 +12,12 @@ use Illuminate\Database\Seeder;
 class RecordsSeeder extends Seeder
 {
     /**
-     * The records and files held in the cabinets, copied out of the local database
-     * so a server can be filled without re-importing the whole dump.
+     * A sample of the records and files held in the cabinets, with the names
+     * replaced by placeholders.
+     *
+     * It fills a server with the same shape as the real archive — the same
+     * lookups, record counts, and files per record — without carrying anyone's
+     * personal data into the repository.
      *
      * Lookups are named rather than given as ids, because the ids they hold on one
      * database say nothing about the ids they hold on another. Each one is created
@@ -30,77 +34,77 @@ class RecordsSeeder extends Seeder
      */
     private const RECORDS = [
         [
-            'owner_name' => 'CRESENCIANO ALBULARIO_01',
+            'owner_name' => 'SAMPLE LANDOWNER 01',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_ALBULARIO',
-                    'file_description' => 'Original Copy of Title named to Cresenciano Albulario with title number T-108519',
+                    'file_name' => 'LDF_SAMPLE_01',
+                    'file_description' => 'Original copy of title (sample record)',
                     'date_of_file' => '1995-08-18',
                 ],
             ],
         ],
         [
-            'owner_name' => 'CRESENCIANO ALBULARIO_02',
+            'owner_name' => 'SAMPLE LANDOWNER 02',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_ALBULARIO',
-                    'file_description' => "Attachment:\nCARP Form No. 19 with TCT/OCT No. (T-2682) T-688",
+                    'file_name' => 'LDF_SAMPLE_02',
+                    'file_description' => "Attachment:\nCARP Form No. 19 (sample)",
                     'date_of_file' => '1991-07-08',
                 ],
             ],
         ],
         [
-            'owner_name' => 'CRESENCIANO ALBULARIO_03',
+            'owner_name' => 'SAMPLE LANDOWNER 03',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_ALBULARIO',
-                    'file_description' => "Attachment\nOriginal CARP Form No. 20 with Title No. P-10008",
+                    'file_name' => 'LDF_SAMPLE_03',
+                    'file_description' => "Attachment\nOriginal CARP Form No. 20 (sample)",
                     'date_of_file' => '1993-09-08',
                 ],
             ],
         ],
         [
-            'owner_name' => 'CRESENCIANO ALBULARIO_04',
+            'owner_name' => 'SAMPLE LANDOWNER 04',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_ALBULARIO',
-                    'file_description' => "Attachment\nOriginal CARP Form No. 18 with Title No. T-777",
+                    'file_name' => 'LDF_SAMPLE_04',
+                    'file_description' => "Attachment\nOriginal CARP Form No. 18 (sample)",
                     'date_of_file' => '1993-09-08',
                 ],
             ],
         ],
         [
-            'owner_name' => 'CRESENCIANO ALBULARIO_05',
+            'owner_name' => 'SAMPLE LANDOWNER 05',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_ALBULARIO',
-                    'file_description' => 'CARP From No. 19 with Title No. P-21896',
+                    'file_name' => 'LDF_SAMPLE_05',
+                    'file_description' => 'CARP Form No. 19 (sample)',
                     'date_of_file' => '1993-09-07',
                 ],
             ],
         ],
         [
-            'owner_name' => 'IDA A. ENTIZE',
+            'owner_name' => 'SAMPLE LANDOWNER 06',
             'owner_type' => 'Non-ARB',
             'record_type' => 'DAR CLEARANCE',
             'location' => 'CABINET 1',
@@ -108,227 +112,227 @@ class RecordsSeeder extends Seeder
             'files' => [
                 [
                     'file_name' => 'LTC Form No. 2',
-                    'file_description' => 'MARPO Certification ',
+                    'file_description' => 'Sample MARPO certification',
                     'date_of_file' => '2026-05-04',
                 ],
                 [
                     'file_name' => 'Letter Request',
-                    'file_description' => 'Reynato C. Robillos\'s Request for the issuance of the MARPO Certification addressed to MARO Mabini for title No. P-49219, Lot No. 1167-D, Csd-11-017594. ',
+                    'file_description' => 'Sample request letter for a certification',
                     'date_of_file' => '2026-04-06',
                 ],
                 [
                     'file_name' => 'LTC Form 1',
-                    'file_description' => 'Application for Issunace of Land Transfer Clearance duly notarized by Atty. Vitaliano A. Valmoria',
+                    'file_description' => 'Sample application for land transfer clearance',
                     'date_of_file' => '2026-03-11',
                 ],
                 [
                     'file_name' => 'Deed of Absolute Sale',
-                    'file_description' => 'Deed entered into by Ida A. Entize, Ricardo A. Perez, Mark Aljon L. Perez, Mark Vincent L Perez and Ma. Maurine L. Perez. Duly notarized by Atty. Vivencio V. Jumamil',
+                    'file_description' => 'Sample deed of absolute sale',
                     'date_of_file' => '2026-05-08',
                 ],
                 [
                     'file_name' => 'Original Certificate of Title (Photocopy)',
-                    'file_description' => 'Title No. P-49219, Lot No. 1167-D, Csd-11-017594 - portion of lot 1176 Cad-277',
+                    'file_description' => 'Sample certificate of title, photocopy',
                     'date_of_file' => '2008-09-30',
                 ],
                 [
                     'file_name' => 'Tax Declaration of Real Property',
-                    'file_description' => 'TD No. 20-03-0008-00395',
+                    'file_description' => 'Sample tax declaration',
                     'date_of_file' => '2026-03-17',
                 ],
                 [
                     'file_name' => 'Joint-Affidavit of Aggregate Landholding',
-                    'file_description' => 'Vendee/Transferor\'s Affidavit duly notarized by Atty. Vitaliano A. Valmoria',
+                    'file_description' => 'Sample joint affidavit of aggregate landholding',
                     'date_of_file' => '2026-03-11',
                 ],
                 [
                     'file_name' => 'Affidavit of Non-Tenancy, Aggregate Landholding, Retention and No Pending Case',
-                    'file_description' => 'Affidavit executed by the Vendor duly notarized by Atty. Vitaliano A. Vilmoria',
+                    'file_description' => 'Sample affidavit of non-tenancy',
                     'date_of_file' => '2026-03-11',
                 ],
                 [
                     'file_name' => 'Municipal Assessor\'s Certification',
-                    'file_description' => 'Certification issued by the Municipal Assessor\'s Office of Mabini, Davao de Oro to Ida A. Entize',
+                    'file_description' => 'Sample municipal certification, first copy',
                     'date_of_file' => '2026-03-26',
                 ],
                 [
                     'file_name' => 'Municipal Assessor\'s Certification',
-                    'file_description' => 'Certification issued by the Municipal Assessro\'s Office of Mabini, Davao de Oro to Ricardo A. Perez, Mark Aljon L. Perez, Ma. Maurine L. Perez and Mark Vincent L. Perez',
+                    'file_description' => 'Sample municipal certification, second copy',
                     'date_of_file' => '2026-03-26',
                 ],
                 [
                     'file_name' => 'Provincial Assessor\'s Certification',
-                    'file_description' => 'Certification as to Aggregate Landholding issued by the Provincial Assossor\'s Office of Davao de Oro to Ida A. Entize',
+                    'file_description' => 'Sample provincial certification, first copy',
                     'date_of_file' => '2026-03-17',
                 ],
                 [
                     'file_name' => 'Provincial Assessor\'s Certification',
-                    'file_description' => 'Certification as to aggregate landholding issued by the Provincial Asseessor\'s Office of Davao de Oro to Ricardo A. Perez, Mark Aljon L. Perez, Ma. Maurine L. Perez and Mark Vincent L. Perez.',
+                    'file_description' => 'Sample provincial certification, second copy',
                     'date_of_file' => '2026-03-17',
                 ],
                 [
                     'file_name' => 'Provincial Assessor\'s Certification',
-                    'file_description' => 'Certification as to aggregate landholding issued by the Provincial Assossor\'s Office of Davao del Norte to Ida A. Entize',
+                    'file_description' => 'Sample provincial certification, third copy',
                     'date_of_file' => '2026-04-06',
                 ],
                 [
                     'file_name' => 'Provincial Assessor\'s Certification',
-                    'file_description' => 'Certification as to aggregate landholding issued by the Provincial Asseessor\'s Office of Davao del Norte to Ricardo A. Perez, Mark Aljon L. Perez, Ma. Maurine L. Perez and Mark Vincent L. Perez.',
+                    'file_description' => 'Sample provincial certification, fourth copy',
                     'date_of_file' => '2026-04-07',
                 ],
                 [
                     'file_name' => 'Special Power of Attorney',
-                    'file_description' => 'Executed by the vendees and Runel L. Robillos',
+                    'file_description' => 'Sample special power of attorney',
                     'date_of_file' => '2026-04-11',
                 ],
             ],
         ],
         [
-            'owner_name' => 'ESPERANZA ALBULARIO _06',
+            'owner_name' => 'SAMPLE LANDOWNER 07',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_ALBULARIO',
-                    'file_description' => "Attachments\nOriginal File: CARP Form No. 20\nCertification FB Applicants",
+                    'file_name' => 'LDF_SAMPLE_07',
+                    'file_description' => "Attachments\nOriginal file: CARP Form No. 20 (sample)",
                     'date_of_file' => '1993-08-30',
                 ],
             ],
         ],
         [
-            'owner_name' => 'BANCO DAVAO (C. DEJACTO)_07',
+            'owner_name' => 'SAMPLE LANDOWNER 08',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_BANCO DAVAO (C. DEJACTO)',
-                    'file_description' => "Attachments:\nCERTIFICATION\nFB Applicants of the landholding registered in the name of Banco Davao (Columbus Dejacto) covered by title no. T-17349",
+                    'file_name' => 'LDF_SAMPLE_08',
+                    'file_description' => "Attachments:\nSample certification",
                     'date_of_file' => '1994-09-15',
                 ],
             ],
         ],
         [
-            'owner_name' => 'DELFIN CENIZA_08',
+            'owner_name' => 'SAMPLE LANDOWNER 09',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_CENIZA',
-                    'file_description' => 'CARPER LAD Forms  18 & 20 of Delfin Ceniza with Title No. T-50032',
+                    'file_name' => 'LDF_SAMPLE_09',
+                    'file_description' => 'Sample CARP forms 18 and 20',
                     'date_of_file' => '1996-12-27',
                 ],
             ],
         ],
         [
-            'owner_name' => 'DBP (L. ARADANAS)_09',
+            'owner_name' => 'SAMPLE LANDOWNER 10',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_DBP (L. ARADANAS)',
-                    'file_description' => 'CARP Form No. 19 of DBP (L. Aradanas) with Title No. T-11336',
+                    'file_name' => 'LDF_SAMPLE_10',
+                    'file_description' => 'Sample CARP Form No. 19 (bank-held)',
                     'date_of_file' => '2003-12-15',
                 ],
             ],
         ],
         [
-            'owner_name' => 'RAFAEL T. ESTIPONA_10',
+            'owner_name' => 'SAMPLE LANDOWNER 11',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_ESTIPONA',
-                    'file_description' => "CARP Form No. 19\nCARP Form No. 20\nCARP Form 4\nTransfer Certificate of Title (Photocopy): T-174933",
+                    'file_name' => 'LDF_SAMPLE_11',
+                    'file_description' => "CARP Form No. 19\nCARP Form No. 20\nTransfer certificate of title (photocopy)",
                     'date_of_file' => '2002-06-03',
                 ],
             ],
         ],
         [
-            'owner_name' => 'JUANITO GAZMEN_11',
+            'owner_name' => 'SAMPLE LANDOWNER 12',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_GAZMEN: ',
-                    'file_description' => '1 copy of original technical description',
+                    'file_name' => 'LDF_SAMPLE_12',
+                    'file_description' => 'Sample technical description',
                     'date_of_file' => '2003-03-12',
                 ],
                 [
-                    'file_name' => 'LDF_GAZMEN',
-                    'file_description' => "Transfer Certificate Title No. T-182783 (photocopy)\n",
+                    'file_name' => 'LDF_SAMPLE_12',
+                    'file_description' => 'Sample transfer certificate of title (photocopy)',
                     'date_of_file' => '2003-03-10',
                 ],
                 [
-                    'file_name' => 'LDF_GAZMEN',
-                    'file_description' => "CARP Form No. 19\n",
+                    'file_name' => 'LDF_SAMPLE_12',
+                    'file_description' => 'Sample CARP Form No. 19',
                     'date_of_file' => '2003-03-18',
                 ],
             ],
         ],
         [
-            'owner_name' => 'FRITZ_GEMPERLE_12',
+            'owner_name' => 'SAMPLE LANDOWNER 13',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_GEMPERLE (T-34222)',
-                    'file_description' => "Attachments:\nCARP Form No. 19\nTCT (Photocopy)\nCertificate of Posting\n",
+                    'file_name' => 'LDF_SAMPLE_13',
+                    'file_description' => "Attachments:\nCARP Form No. 19 (sample)\nTCT (photocopy)\nSample certificate of posting",
                     'date_of_file' => '1998-11-11',
                 ],
             ],
         ],
         [
-            'owner_name' => 'SANTOS JUMAWAN_13',
+            'owner_name' => 'SAMPLE LANDOWNER 14',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_JUMAWAN (P-7978)',
-                    'file_description' => "Attachments:\nCARP Form No. 19 (Original)\nCARP From No. 18 (Original)\n",
+                    'file_name' => 'LDF_SAMPLE_14',
+                    'file_description' => "Attachments:\nSample CARP Form No. 19\nSample CARP Form No. 18",
                     'date_of_file' => '1991-09-06',
                 ],
             ],
         ],
         [
-            'owner_name' => 'HEIRS OF MANDALANO MANSACA_14',
+            'owner_name' => 'SAMPLE LANDOWNER 15',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_HRS MANSACA (P-11094)',
-                    'file_description' => "Attachments:\nCARP Form No. 20\nCARP Form No. 18\nCARP Form No. 19\n",
+                    'file_name' => 'LDF_SAMPLE_15',
+                    'file_description' => "Attachments:\nSample CARP Form No. 20\nSample CARP Form No. 18",
                     'date_of_file' => '1994-01-13',
                 ],
             ],
         ],
         [
-            'owner_name' => 'FERNANDO MONTELIBANO_15',
+            'owner_name' => 'SAMPLE LANDOWNER 16',
             'owner_type' => 'LANDOWNER',
             'record_type' => 'LAND DISTRIBUTION FOLDER (LDF)',
             'location' => 'CABINET 1',
             'station' => 'DARMO - MABINI',
             'files' => [
                 [
-                    'file_name' => 'LDF_MONTELIBANO (T-8194)',
-                    'file_description' => "Attachments:\nCARP Form No. 20\nCARP Form No. 19\nCARP Form No. 18",
+                    'file_name' => 'LDF_SAMPLE_16',
+                    'file_description' => "Attachments:\nSample CARP Form No. 20\nSample CARP Form No. 19",
                     'date_of_file' => '1990-02-04',
                 ],
             ],

@@ -241,6 +241,56 @@ test('a search resets pagination to the first page', function () {
         ->assertSee('Owner 00');
 });
 
+test('clearing the filters returns to the first page', function () {
+    RecordsOwner::factory()
+        ->count(20)
+        ->sequence(...array_map(
+            fn (int $day) => ['owner_name' => sprintf('Owner %02d', $day), 'created_at' => now()->subDays($day)],
+            range(0, 19),
+        ))
+        ->create();
+
+    Livewire::test('admin::records.index')
+        ->set('search', 'Owner')
+        ->set('paginators.page', 2)
+        ->assertSee('Owner 16')
+        ->call('clearFilters')
+        ->assertSet('paginators.page', 1)
+        ->assertSee('Owner 00');
+});
+
+test('deleting the last record on a page moves back to a page that has rows', function () {
+    $oldest = RecordsOwner::factory()->create([
+        'owner_name' => 'Oldest Record',
+        'created_at' => now()->subDays(10),
+    ]);
+
+    RecordsOwner::factory()->count(15)->create(['created_at' => now()]);
+
+    Livewire::test('admin::records.index')
+        ->set('paginators.page', 2)
+        ->assertSee('Oldest Record')
+        ->call('delete', $oldest->id)
+        ->assertSet('paginators.page', 1)
+        ->assertDontSee('Oldest Record');
+});
+
+test('a filter change rebuilds the rows so a newly matching one opens', function () {
+    $record = RecordsOwner::factory()->create(['owner_name' => 'Ada Lovelace']);
+
+    $filtered = Livewire::test('admin::records.index')->set('search', 'ada')->html();
+    $unfiltered = Livewire::test('admin::records.index')->html();
+
+    preg_match('/wire:key="record-'.$record->id.'-([a-f0-9]+)"/', $filtered, $during);
+    preg_match('/wire:key="record-'.$record->id.'-([a-f0-9]+)"/', $unfiltered, $after);
+
+    // The key changes, so the browser throws away the rows — and the closed
+    // state Alpine remembered for them — instead of morphing them in place.
+    expect($during[1] ?? null)->not->toBeNull()
+        ->and($after[1] ?? null)->not->toBeNull()
+        ->and($during[1])->not->toBe($after[1]);
+});
+
 test('filters live in the url so a filtered list can be shared', function () {
     ['land' => $land] = searchFixture();
 

@@ -52,6 +52,7 @@ new class extends Component {
     public function clearFilters(): void
     {
         $this->reset('search');
+        $this->resetPage();
     }
 
     /**

@@ -241,9 +241,10 @@ final class DatabaseImporter
         $pdo = DB::connection()->getPdo();
         $statements = 0;
         $ledgerKept = false;
+        $ledgerExists = in_array(self::LEDGER, $existing, true);
 
         foreach ($dump->statements as $statement) {
-            if ($this->writesLedger($statement)) {
+            if ($this->writesLedger($statement, $ledgerExists)) {
                 $ledgerKept = true;
 
                 continue;
@@ -281,13 +282,35 @@ final class DatabaseImporter
     /**
      * Whether a statement would rewrite this database's migration history,
      * which is the one table a restore from another server must leave alone.
+     *
+     * Data statements are always refused. The DDL that a schema dump opens
+     * with (`DROP TABLE migrations`, `CREATE TABLE migrations`, `ALTER TABLE
+     * migrations`) is refused too, but only while this database has a ledger
+     * of its own to protect: on a database that has never been migrated,
+     * letting the file create it is the only way the file can load.
      */
-    private function writesLedger(string $statement): bool
+    private function writesLedger(string $statement, bool $ledgerExists): bool
     {
-        return preg_match(
-            '/^(?:INSERT\s+INTO|REPLACE\s+INTO|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?(?:\s+ONLY)?)\s+"?'.self::LEDGER.'"?\b/i',
+        $writes = preg_match(
+            '/^(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?(?:\s+ONLY)?|UPDATE(?:\s+OR\s+\w+)?)\s+'.$this->ledgerTable().'\b/i',
             $statement,
         ) === 1;
+
+        if ($writes || ! $ledgerExists) {
+            return $writes;
+        }
+
+        return preg_match('/^(?:DROP|CREATE|ALTER)\s+TABLE\b/i', $statement) === 1
+            && preg_match('/'.$this->ledgerTable().'\b/i', $statement) === 1;
+    }
+
+    /**
+     * The ledger as a statement could name it: bare, quoted, or reached
+     * through a schema, which is how a dump from another server writes it.
+     */
+    private function ledgerTable(): string
+    {
+        return '(?:[`"\[]?(?:public|main)[`"\]]?\s*\.\s*)?[`"\[]?'.self::LEDGER.'[`"\]]?';
     }
 
     /**

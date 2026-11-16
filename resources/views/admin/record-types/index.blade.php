@@ -108,6 +108,18 @@ new class extends Component {
 
         $type->delete();
 
+        // The list has changed, so anything read before the delete is stale.
+        unset($this->recordTypes);
+
+        $recordTypes = $this->recordTypes;
+
+        // Deleting the last row of a page would leave the list pointing at a
+        // page that no longer exists, showing nothing while records sit on the
+        // page before it.
+        if ($recordTypes->isEmpty() && $recordTypes->currentPage() > 1) {
+            $this->setPage($recordTypes->lastPage());
+        }
+
         $this->dispatch('modal-saved', 'record-type-delete');
         $this->dispatch('toast', message: "Record type “{$type->name}” deleted.");
     }

@@ -105,6 +105,18 @@ new class extends Component {
 
         $type->delete();
 
+        // The list has changed, so anything read before the delete is stale.
+        unset($this->ownerTypes);
+
+        $ownerTypes = $this->ownerTypes;
+
+        // Deleting the last row of a page would leave the list pointing at a
+        // page that no longer exists, showing nothing while records sit on the
+        // page before it.
+        if ($ownerTypes->isEmpty() && $ownerTypes->currentPage() > 1) {
+            $this->setPage($ownerTypes->lastPage());
+        }
+
         $this->dispatch('modal-saved', 'owner-type-delete');
         $this->dispatch('toast', message: "Owner type “{$type->name}” deleted.");
     }

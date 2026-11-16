@@ -115,6 +115,18 @@ new class extends Component {
 
         $model->delete();
 
+        // The list has changed, so anything read before the delete is stale.
+        unset($this->stations);
+
+        $stations = $this->stations;
+
+        // Deleting the last row of a page would leave the list pointing at a
+        // page that no longer exists, showing nothing while records sit on the
+        // page before it.
+        if ($stations->isEmpty() && $stations->currentPage() > 1) {
+            $this->setPage($stations->lastPage());
+        }
+
         $this->dispatch('modal-saved', 'station-delete');
         $this->dispatch('toast', message: "Station “{$model->name}” deleted.");
     }

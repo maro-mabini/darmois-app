@@ -22,15 +22,15 @@ test('it seeds the records, their files, and the lookups they name', function ()
 test('it hangs each file on the record that owns it', function () {
     $this->seed(RecordsSeeder::class);
 
-    $record = RecordsOwner::query()->where('owner_name', 'IDA A. ENTIZE')->sole();
-    $albulario = RecordsOwner::query()->where('owner_name', 'CRESENCIANO ALBULARIO_02')->sole();
+    $record = RecordsOwner::query()->where('owner_name', 'SAMPLE LANDOWNER 06')->sole();
+    $sample = RecordsOwner::query()->where('owner_name', 'SAMPLE LANDOWNER 02')->sole();
 
     expect($record->recordType->name)->toBe('DAR CLEARANCE')
         ->and($record->ownerType->name)->toBe('Non-ARB')
         ->and($record->location?->name)->toBe('CABINET 1')
         ->and($record->station?->name)->toBe('DARMO - MABINI')
         ->and($record->files()->count())->toBe(15)
-        ->and($albulario->files()->sole()->file_description)->toBe("Attachment:\nCARP Form No. 19 with TCT/OCT No. (T-2682) T-688");
+        ->and($sample->files()->sole()->file_description)->toBe("Attachment:\nCARP Form No. 19 (sample)");
 });
 
 test('it adds nothing to a table that already holds the records', function () {

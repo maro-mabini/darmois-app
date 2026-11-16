@@ -97,6 +97,7 @@ new class extends Component {
     public function clearFilters(): void
     {
         $this->reset('search', 'recordType');
+        $this->resetPage();
     }
 
     /**
@@ -188,6 +189,18 @@ new class extends Component {
 
         $model->delete();
 
+        // The list has changed, so anything read before the delete is stale.
+        unset($this->records);
+
+        $records = $this->records;
+
+        // Deleting the last row of a page would leave the list pointing at a
+        // page that no longer exists, showing nothing while records sit on the
+        // page before it.
+        if ($records->isEmpty() && $records->currentPage() > 1) {
+            $this->setPage($records->lastPage());
+        }
+
         $this->dispatch('modal-saved', 'record-delete');
         $this->dispatch('toast', message: "Record “{$model->owner_name}” deleted.");
     }
@@ -254,6 +267,21 @@ new class extends Component {
     public function isFiltered(): bool
     {
         return $this->searchTerm() !== '' || $this->recordType !== '';
+    }
+
+    /**
+     * A key that changes with the filters, so their rows are rebuilt rather
+     * than morphed into place.
+     *
+     * Which rows a search matches is decided on the server, but whether a row
+     * is open is Alpine state the browser keeps across a morph. A new key
+     * discards the old rows, so a record that now matches opens with its
+     * files in view instead of keeping the closed state of the previous list.
+     */
+    #[Computed]
+    public function filterRevision(): string
+    {
+        return md5($this->searchTerm().'|'.$this->recordType);
     }
 
     /**
@@ -672,14 +700,14 @@ new class extends Component {
                     state would have to be tracked by id on the component.
                 --}}
                 <tbody
-                    wire:key="record-{{ $record->id }}"
+                    wire:key="record-{{ $record->id }}-{{ $this->filterRevision }}"
                     x-data="{ open: {{ $this->matchesSearch($record) ? 'true' : 'false' }} }"
                     class="divide-y divide-gray-200 dark:divide-gray-800"
                 >
                     <tr
                         x-on:click="if (! $event.target.closest('a, button, input, label')) open = ! open"
-                        x-on:keydown.enter.prevent="open = ! open"
-                        x-on:keydown.space.prevent="open = ! open"
+                        x-on:keydown.enter.prevent="if ($event.target === $event.currentTarget) open = ! open"
+                        x-on:keydown.space.prevent="if ($event.target === $event.currentTarget) open = ! open"
                         tabindex="0"
                         :aria-expanded="open"
                         :aria-controls="'record-files-{{ $record->id }}'"
@@ -700,6 +728,7 @@ new class extends Component {
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7" />
                                 </svg>
                             </span>
+                        </td>
                         <td class="px-3 py-3 font-medium whitespace-nowrap text-gray-900 dark:text-white">
                             <a
                                 href="{{ route('admin.records.show', $record) }}"

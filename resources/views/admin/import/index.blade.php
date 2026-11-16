@@ -44,14 +44,14 @@ new class extends Component {
     public ?array $report = null;
 
     /**
-     * Executing uploaded SQL is a development tool: there is no login in front of
-     * it, so a deployed server must not offer it at all. This runs on every
-     * request, not just the first one, so a crafted component update is refused
-     * too.
+     * Executing uploaded SQL is a development tool: there is no login in front
+     * of it, so only a local machine offers it. A deployed server — staging as
+     * much as production — must not answer at all. This runs on every request,
+     * not just the first one, so a crafted component update is refused too.
      */
     public function boot(): void
     {
-        abort_if(app()->isProduction(), 404);
+        abort_unless(app()->environment('local', 'testing'), 404);
     }
 
     /**
@@ -431,7 +431,8 @@ new class extends Component {
                 <li class="flex gap-2">
                     <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500"></span>
                     <span>
-                        The page only exists outside production. A deployed server answers 404.
+                        The page only exists on a local machine. Any deployed server, staging included,
+                        answers 404.
                     </span>
                 </li>
             </ul>

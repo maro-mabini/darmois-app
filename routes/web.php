@@ -2,7 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'welcome')->name('home');
 Route::livewire('/', 'admin::-dashboard')->name('admin.dashboard');
 
 Route::livewire('/records', 'admin::records.index')->name('admin.records.index');

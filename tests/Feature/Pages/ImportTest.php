@@ -170,6 +170,12 @@ test('the import page does not exist in production', function () {
     $this->get(route('admin.import.index'))->assertNotFound();
 });
 
+test('the import page does not exist on a deployed staging server', function () {
+    $this->app['env'] = 'staging';
+
+    $this->get(route('admin.import.index'))->assertNotFound();
+});
+
 test('reads an uploaded dump and reports what it holds', function () {
     Livewire::test('admin::import.index')
         ->set('file', UploadedFile::fake()->createWithContent('dump.sql', pgDumpForImport([
@@ -518,6 +524,41 @@ test('keeps the migration history when a plain file rewrites it', function () {
         ->and($entry['note'])->toBe('Migration history kept')
         ->and($report['statements'])->toBe(1)
         ->and(RecordType::query()->where('name', 'Case File')->exists())->toBeTrue();
+});
+
+test('keeps the migration history when a plain file drops and recreates it', function () {
+    $ledger = DB::table('migrations')->orderBy('id')->pluck('migration')->all();
+
+    $dump = importDump(implode("\n", [
+        'DROP TABLE IF EXISTS migrations;',
+        'CREATE TABLE migrations (id INTEGER PRIMARY KEY, migration TEXT NOT NULL, batch INTEGER NOT NULL);',
+        "INSERT INTO migrations (id, migration, batch) VALUES (1, '2015_10_21_000000_create_other_servers_table', 1);",
+        "INSERT INTO record_types (id, name, created_at, updated_at) VALUES (10, 'Case File', '2026-01-01 00:00:00', '2026-01-01 00:00:00');",
+    ]));
+
+    $report = app(DatabaseImporter::class)->import($dump, DatabaseImporter::APPEND);
+
+    expect(DB::table('migrations')->orderBy('id')->pluck('migration')->all())->toBe($ledger)
+        ->and(collect($report['tables'])->firstWhere('table', 'migrations')['note'])->toBe('Migration history kept')
+        ->and(RecordType::query()->where('name', 'Case File')->exists())->toBeTrue();
+});
+
+test('keeps the migration history when a plain file quotes or qualifies it', function () {
+    $ledger = DB::table('migrations')->orderBy('id')->pluck('migration')->all();
+
+    $dump = importDump(implode("\n", [
+        'UPDATE "migrations" SET batch = 99;',
+        'DELETE FROM public.migrations;',
+        'ALTER TABLE migrations ADD COLUMN note TEXT;',
+        "INSERT INTO record_types (id, name, created_at, updated_at) VALUES (10, 'Case File', '2026-01-01 00:00:00', '2026-01-01 00:00:00');",
+    ]));
+
+    $report = app(DatabaseImporter::class)->import($dump, DatabaseImporter::APPEND);
+
+    expect(DB::table('migrations')->orderBy('id')->pluck('migration')->all())->toBe($ledger)
+        ->and(DB::getSchemaBuilder()->getColumnListing('migrations'))->toBe(['id', 'migration', 'batch'])
+        ->and($report['statements'])->toBe(1)
+        ->and(collect($report['tables'])->firstWhere('table', 'migrations')['note'])->toBe('Migration history kept');
 });
 
 test('restores the real pg dump from the project root and leaves migrate working', function () {
